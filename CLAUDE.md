@@ -21,7 +21,7 @@ A small Node.js CLI (~600 lines, zero runtime dependencies) that:
 
 Single source of behavior: `bin/ghqcd.mjs`.
 
-Sibling packages built to the same contract: `gwqcd`, `gwqget`, `ghnew`.
+Sibling packages built to the same contract: `gwqcd`, `gwqpull`, `ghnew`.
 
 ---
 
@@ -43,7 +43,7 @@ path the shell tries to `cd` into.
 
 ### I2. `--init` is a flag, not a subcommand
 
-`ghqcd init zsh` would be ambiguous in the sibling `gwqget`, whose positional
+`ghqcd init zsh` would be ambiguous in the sibling `gwqpull`, whose positional
 is a repository spec. All four tools in this family therefore spell it
 `--init <shell>`. Do not "fix" this to match zoxide.
 

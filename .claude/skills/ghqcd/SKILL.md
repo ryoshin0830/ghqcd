@@ -14,7 +14,7 @@ when_to_use: |
     - "open <repo> and run the tests"
 
   Do NOT use this skill when the user wants any of:
-    - cloning a repository that is not on disk yet (use `ghq get`, or `gwqget`
+    - cloning a repository that is not on disk yet (use `ghq get`, or `gwqpull`
       when a worktree is wanted)
     - creating a brand-new remote repo (use `ghnew`)
     - a git worktree rather than the main clone (use `gwqcd`)
@@ -118,7 +118,7 @@ diagnostics share the stream, so select the line starting with `{` —
 whole stream to `jq`.
 
 On `E_NO_MATCH`, the repository is not cloned. Say so and offer `ghq get <url>`
-(or `gwqget`); do NOT retry with a mutated query.
+(or `gwqpull`); do NOT retry with a mutated query.
 
 ## Things the skill must NOT do
 

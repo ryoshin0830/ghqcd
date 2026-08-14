@@ -130,7 +130,7 @@ prompt.
 ## Related
 
 - [`gwqcd`](https://github.com/ryoshin0830/gwqcd) — same idea for [gwq](https://github.com/d-kuro/gwq) worktrees
-- [`gwqget`](https://github.com/ryoshin0830/gwqget) — clone with ghq, add a gwq worktree, and cd into it
+- [`gwqpull`](https://github.com/ryoshin0830/gwqpull) — clone with ghq, add a gwq worktree, and cd into it
 - [`ghnew`](https://github.com/ryoshin0830/ghnew) — create a GitHub repo, ghq-get it, and cd into it
 
 ## License
