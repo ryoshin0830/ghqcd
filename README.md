@@ -50,7 +50,8 @@ then the script that generated the snippet, then `npx -y ghqcd@<version>` — so
 it keeps working after npm garbage-collects the npx cache. It is still worth a
 global install: `npx` adds about a second to every jump.
 
-Requires `ghq` and `fzf` on `PATH` (`brew install ghq fzf`), and Node >= 20.12.
+Requires `git`, `ghq` and `fzf` on `PATH` (`brew install git ghq fzf`), and
+Node >= 20.12. git is needed because `ghq` shells out to it.
 
 ## Why `--init` exists
 

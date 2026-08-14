@@ -341,6 +341,10 @@ function commandExists(cmd) {
 }
 
 const INSTALL = {
+  // git is not called directly, but `ghq list -p` shells out to it and fails
+  // with exit 1 and an empty listing when it is absent. Checking for it here
+  // turns that into a message that names the missing tool.
+  git: { brew: 'git', url: 'https://git-scm.com/downloads' },
   ghq: { brew: 'ghq', url: 'https://github.com/x-motemen/ghq#installation' },
   fzf: { brew: 'fzf', url: 'https://github.com/junegunn/fzf#installation' },
 };
@@ -430,10 +434,19 @@ async function confirmYesNo(question) {
 
 // ── candidate collection ─────────────────────────────────────────────────────
 
-function ghqRoot() {
-  const r = spawnSync('ghq', ['root'], { encoding: 'utf8' });
-  if (r.status !== 0) return '';
-  return (r.stdout ?? '').trim().split('\n')[0] ?? '';
+// ghq supports several roots at once (`ghq.root` repeated, or a colon-separated
+// GHQ_ROOT). `ghq root` prints only the first, so a slug derived from it is
+// wrong for every repository living under a secondary root — it degraded to the
+// full path. Ask for all of them, longest first so a nested root wins.
+function ghqRoots() {
+  const all = spawnSync('ghq', ['root', '--all'], { encoding: 'utf8' });
+  const list = all.status === 0
+    ? (all.stdout ?? '').split('\n').map((l) => l.trim()).filter(Boolean)
+    : [];
+  if (list.length) return list.sort((a, b) => b.length - a.length);
+  const one = spawnSync('ghq', ['root'], { encoding: 'utf8' });
+  const first = one.status === 0 ? (one.stdout ?? '').trim().split('\n')[0] : '';
+  return first ? [first] : [];
 }
 
 function listRepos() {
@@ -579,12 +592,16 @@ function copyToClipboard(text) {
 // ── main flow ────────────────────────────────────────────────────────────────
 
 async function main() {
+  await ensureTool('git');
   await ensureTool('ghq');
   await ensureTool('fzf');
 
-  const root = ghqRoot();
-  const slugOf = (p) =>
-    root && p.startsWith(root + '/') ? p.slice(root.length + 1) : p;
+  const roots = ghqRoots();
+  const root = roots[roots.length - 1] ?? ''; // the primary, for the `root` field
+  const slugOf = (p) => {
+    for (const r of roots) if (p.startsWith(`${r}/`)) return p.slice(r.length + 1);
+    return p;
+  };
 
   const repos = listRepos();
   if (repos.length === 0) {

@@ -231,8 +231,12 @@ test('a failing ghq list surfaces as E_GHQ', () => {
 
 test('a missing fzf exits 127 with the brew command', () => {
   const dir = mkdtempSync(join(tmpdir(), 'ghqcd-noshim-'));
-  writeFileSync(join(dir, 'ghq'), '#!/bin/sh\nexit 0\n');
-  chmodSync(join(dir, 'ghq'), 0o755);
+  // git too: it is checked before ghq, so omitting it would make this
+  // assert the wrong missing tool.
+  for (const n of ['git', 'ghq']) {
+    writeFileSync(join(dir, n), '#!/bin/sh\nexit 0\n');
+    chmodSync(join(dir, n), 0o755);
+  }
   const r = spawnSync(process.execPath, [BIN, '--json', 'x'], {
     encoding: 'utf8',
     env: { ...process.env, PATH: dir, NO_COLOR: '1' },
@@ -242,4 +246,22 @@ test('a missing fzf exits 127 with the brew command', () => {
   const err = jsonLine(r.stderr);
   assert.equal(err.error.code, 'E_DEPS');
   assert.match(err.error.message, /brew install fzf/);
+});
+
+test('a missing git exits 127 — ghq shells out to it', () => {
+  // Without git, `ghq` does not simply fail loudly: `ghq list -p` exits 1 with an empty listing,
+  // which this tool would otherwise report as "no repositories".
+  const dir = mkdtempSync(join(tmpdir(), 'ghqcd-nogit-'));
+  for (const n of ['ghq', 'fzf']) {
+    writeFileSync(join(dir, n), '#!/bin/sh\nexit 0\n');
+    chmodSync(join(dir, n), 0o755);
+  }
+  const r = spawnSync(process.execPath, [BIN, '--json', 'x'], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: dir, NO_COLOR: '1' },
+  });
+  rmSync(dir, { recursive: true, force: true });
+  assert.equal(r.status, 127);
+  assert.equal(jsonLine(r.stderr).error.code, 'E_DEPS');
+  assert.match(jsonLine(r.stderr).error.message, /'git' not found/);
 });

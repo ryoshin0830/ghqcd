@@ -41,6 +41,11 @@ This is not cosmetic. `--quiet` stdout is consumed by `$(…)` inside the
 generated shell function; anything else on that stream becomes part of the
 path the shell tries to `cd` into.
 
+### I1b. git is a dependency even though it is never called directly
+
+`ghq list -p` shells out to git and exits 1 with an empty listing without it. So `git` is checked with the others, and the user gets "install git"
+instead of a puzzle. Verified by removing git from PATH; there is a test.
+
 ### I2. `--init` is a flag, not a subcommand
 
 `ghqcd init zsh` would be ambiguous in the sibling `gwqpull`, whose positional
@@ -84,6 +89,14 @@ fzf exits 130 on Esc / Ctrl-C. `die('E_INTERRUPTED', …)` deliberately writes
 **nothing** to stderr in non-JSON mode: cancelling the picker is the single
 most common way this program ends, and a red line above the user's next prompt
 every time is noise. The exit code still propagates.
+
+### I6b. ghq can have several roots
+
+`ghq.root` may be repeated, and `GHQ_ROOT` may be colon-separated. `ghq root`
+prints only the first, so deriving a slug from it left every repository under a
+secondary root with `slug` equal to its full path. `ghqRoots()` uses
+`ghq root --all`, sorted longest-first so a nested root wins, and `slugOf()`
+tries each. The `root` field still reports the primary.
 
 ### I7. `--json` schema (external contract)
 
