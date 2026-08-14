@@ -265,3 +265,36 @@ test('a missing git exits 127 — ghq shells out to it', () => {
   assert.equal(jsonLine(r.stderr).error.code, 'E_DEPS');
   assert.match(jsonLine(r.stderr).error.message, /'git' not found/);
 });
+
+// ── the emitted function, actually run ───────────────────────────────────────
+//
+// A syntax check never caught this: with the function installed, every flag
+// whose output goes to stdout was captured and handed to `cd`. `--version`
+// became "no such file or directory: ghqcd x.y.z" and `--help` became
+// "file name too long". Run the function for real.
+
+function shellRun(shell, args) {
+  const init = run(['--init', shell]).stdout;
+  const script = shell === 'fish'
+    ? `${init}\nghqcd ${args.join(' ')}`
+    : `${init}\nghqcd ${args.join(' ')}`;
+  return spawnSync(shell, ['-c', script], { encoding: 'utf8' });
+}
+
+for (const shell of ['zsh', 'bash', 'fish']) {
+  test(`the ${shell} function passes --version through instead of cd'ing into it`, (t) => {
+    if (spawnSync(shell, ['-c', 'true'], { stdio: 'ignore' }).error) return t.skip(`${shell} missing`);
+    const r = shellRun(shell, ['--version']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^ghqcd \d+\.\d+\.\d+/m);
+    assert.doesNotMatch(r.stderr, /cd:|no such file|not a directory/);
+  });
+
+  test(`the ${shell} function passes --help through`, (t) => {
+    if (spawnSync(shell, ['-c', 'true'], { stdio: 'ignore' }).error) return t.skip(`${shell} missing`);
+    const r = shellRun(shell, ['--help']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /USAGE/);
+    assert.doesNotMatch(r.stderr, /file name too long|cd:/);
+  });
+}

@@ -150,6 +150,17 @@ select the line starting with `{`, never parse the whole stream.
 | 127  | `E_DEPS`        | `ghq`/`fzf` missing and user declined install    |
 | 130  | `E_INTERRUPTED` | Esc / Ctrl-C                                     |
 
+### I8b. The function must not capture output that is not a path
+
+Every flag whose result goes to stdout has to be passed through uncaptured:
+`-h`, `--help`, `-V`, `--version`, `--init`, `--list`, `--json`. The wrapper adds
+`--quiet`, so `--json` would additionally collide with it and error out.
+
+This shipped broken in every one of these packages and was only found by running
+the emitted function rather than syntax-checking it — `zsh -n` is perfectly happy
+with a function that cds into a help page. There are tests now that install the
+function in zsh, bash and fish and run `--version` and `--help` through it.
+
 ### I9. Zero runtime dependencies
 
 `ghnew` depends on `@inquirer/prompts`; this package deliberately does not.
