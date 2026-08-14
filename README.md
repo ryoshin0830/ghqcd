@@ -26,14 +26,18 @@ Then add the shell integration:
 
 ```sh
 # zsh  — ~/.zshrc
-eval "$(ghqcd --init zsh)"
+eval "$(command ghqcd --init zsh)"
 
 # bash — ~/.bashrc
-eval "$(ghqcd --init bash)"
+eval "$(command ghqcd --init bash)"
 
 # fish — ~/.config/fish/config.fish
-ghqcd --init fish | source
+command ghqcd --init fish | source
 ```
+
+`command` matters: each tool defines a shell function with its own name, so on a
+second `source ~/.zshrc` the *function* would answer, capture the `--init` output
+and try to `cd` into it. `command` skips functions and goes to the binary.
 
 Reload the shell and `ghqcd` moves it.
 
