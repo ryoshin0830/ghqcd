@@ -1,0 +1,1619 @@
+{
+  "measurement_date": "2026-10-26",
+  "scope": "public metadata and README only, local inference",
+  "qwen": {
+    "date": "2026-10-26",
+    "hardware": "Apple M5, arm64, 32 GiB",
+    "model": {
+      "repo": "mlx-community/Qwen3-Embedding-0.6B-4bit-DWQ",
+      "revision": "6c3ae70858513f1a78e9cdca3cae330d9075cd2a",
+      "download_seconds": 11.678969665998011,
+      "files_bytes": 351226695
+    },
+    "runtime": {
+      "python": "3.12.13 (main, May 10 2026, 19:20:41) [Clang 22.1.3 ]",
+      "mlx": "0.32.4",
+      "mlx_embeddings": "0.1.0",
+      "quantization": "MLX 4-bit DWQ; different from Ollama Q8"
+    },
+    "corpus": {
+      "repos": 26,
+      "readmes": 24,
+      "chunks": 220,
+      "max_input_tokens_before_truncation": 403,
+      "text_characters": 159972,
+      "tokens_before_truncation_including_overlap": 63050,
+      "embedding_max_tokens": 384
+    },
+    "timings": {
+      "import_seconds": 0.6094303339996259,
+      "load_seconds": 0.2401208340015728,
+      "first_query_seconds": 0.033187000000907574,
+      "index_seconds": 7.466807666001841,
+      "fts_build_seconds": 0.011437084001954645,
+      "unchanged_local_hash_seconds": 0.0003010000000358559,
+      "one_modified_chunk_embedding_seconds": 0.03588883400516352,
+      "warm_query_embedding": {
+        "n": 60,
+        "p50_ms": 14.288083501014626,
+        "p95_ms": 21.148010099932435,
+        "min_ms": 10.98325000202749,
+        "max_ms": 311.4002080037608
+      },
+      "vector_compare_and_repo_aggregation": {
+        "n": 60,
+        "p50_ms": 0.03789550100918859,
+        "p95_ms": 0.062389298182097264,
+        "min_ms": 0.03145800292259082,
+        "max_ms": 0.534624996362254
+      },
+      "fts_trigram_or_bm25": {
+        "n": 60,
+        "p50_ms": 0.18714600082603283,
+        "p95_ms": 0.30422644631471474,
+        "min_ms": 0.06216699694050476,
+        "max_ms": 0.7718749984633178
+      },
+      "warm_hybrid_total": {
+        "n": 60,
+        "p50_ms": 14.551250002114102,
+        "p95_ms": 21.398020198830636,
+        "min_ms": 11.093542001617607,
+        "max_ms": 311.9010839945986
+      }
+    },
+    "storage": {
+      "vectors_bytes": 901248,
+      "fts_db_bytes": 1343488,
+      "corpus_json_bytes": 190771,
+      "mlx_peak_bytes": 1141763278,
+      "rss_peak_bytes": 697876480
+    },
+    "quality": {
+      "lexical": {
+        "top1": 8,
+        "top5": 13,
+        "queries": 20
+      },
+      "semantic": {
+        "top1": 19,
+        "top5": 20,
+        "queries": 20
+      },
+      "hybrid": {
+        "top1": 13,
+        "top5": 18,
+        "queries": 20
+      }
+    },
+    "queries": [
+      {
+        "query": "AIのスキルとMCPを複数のパソコンで同期したい",
+        "expected": "syncskills",
+        "lexical_top5": [
+          "picking",
+          "short-url",
+          "google-mcp",
+          "outlook-mcp",
+          "grantloom"
+        ],
+        "semantic_top5": [
+          "syncskills",
+          "google-mcp",
+          "outlook-mcp",
+          "grantloom",
+          "isucon-shin"
+        ],
+        "hybrid_top5": [
+          "google-mcp",
+          "outlook-mcp",
+          "syncskills",
+          "grantloom",
+          "short-url"
+        ]
+      },
+      {
+        "query": "oneset",
+        "expected": "syncskills",
+        "lexical_top5": [
+          "syncskills"
+        ],
+        "semantic_top5": [
+          "syncskills",
+          "ryoshin0830",
+          "isucon-shin",
+          "ghqcd",
+          "ccverbs"
+        ],
+        "hybrid_top5": [
+          "syncskills",
+          "ryoshin0830",
+          "isucon-shin",
+          "ghqcd",
+          "ccverbs"
+        ]
+      },
+      {
+        "query": "GoogleのOAuthトークンを1Passwordに保存したい",
+        "expected": "grantloom",
+        "lexical_top5": [
+          "outlook-mcp",
+          "isucon-shin",
+          "grantloom",
+          "short-url",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "grantloom",
+          "short-url",
+          "expense-ledger",
+          "ghnew",
+          "outlook-mcp"
+        ],
+        "hybrid_top5": [
+          "grantloom",
+          "outlook-mcp",
+          "short-url",
+          "isucon-shin",
+          "expense-ledger"
+        ]
+      },
+      {
+        "query": "GoogleカレンダーやGmailをAIから操作するMCPサーバー",
+        "expected": "google-mcp",
+        "lexical_top5": [
+          "outlook-mcp",
+          "google-mcp",
+          "short-url",
+          "grantloom",
+          "isucon-shin"
+        ],
+        "semantic_top5": [
+          "google-mcp",
+          "outlook-mcp",
+          "grantloom",
+          "syncskills",
+          "kane"
+        ],
+        "hybrid_top5": [
+          "outlook-mcp",
+          "google-mcp",
+          "grantloom",
+          "syncskills",
+          "kane"
+        ]
+      },
+      {
+        "query": "OutlookのメールをMCPで検索して読みたい",
+        "expected": "outlook-mcp",
+        "lexical_top5": [
+          "outlook-mcp",
+          "isucon-shin",
+          "picking",
+          "japanese-tts-comparison",
+          "google-mcp"
+        ],
+        "semantic_top5": [
+          "outlook-mcp",
+          "google-mcp",
+          "grantloom",
+          "kane",
+          "page-checker"
+        ],
+        "hybrid_top5": [
+          "outlook-mcp",
+          "google-mcp",
+          "grantloom",
+          "kane",
+          "syncskills"
+        ]
+      },
+      {
+        "query": "スキャンした本の抜けページを見つけるツール",
+        "expected": "page-checker",
+        "lexical_top5": [
+          "outlook-mcp",
+          "short-url",
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template"
+        ],
+        "semantic_top5": [
+          "page-checker",
+          "markdown_slide",
+          "fzf-ghq-remote",
+          "ryoshin0830",
+          "latex-jp-en-references-template"
+        ],
+        "hybrid_top5": [
+          "short-url",
+          "latex-jp-en-references-template",
+          "outlook-mcp",
+          "page-checker",
+          "markdown_slide"
+        ]
+      },
+      {
+        "query": "名簿をランダムにチーム分けするコマンド",
+        "expected": "picking",
+        "lexical_top5": [
+          "picking",
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "short-url"
+        ],
+        "semantic_top5": [
+          "picking",
+          "syncskills",
+          "portfolio",
+          "kane",
+          "ccverbs"
+        ],
+        "hybrid_top5": [
+          "picking",
+          "short-url",
+          "isucon-shin",
+          "mp3-album-info-renamer",
+          "syncskills"
+        ]
+      },
+      {
+        "query": "MP3の曲名をファイル名と同じに揃えたい",
+        "expected": "mp3-album-info-renamer",
+        "lexical_top5": [
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "markdown_slide"
+        ],
+        "semantic_top5": [
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "short-url",
+          "ghqcd",
+          "gwqcd"
+        ],
+        "hybrid_top5": [
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "short-url",
+          "isucon-shin",
+          "latex-jp-en-references-template"
+        ]
+      },
+      {
+        "query": "日本語と英語の参考文献を分けて表示するLaTeXテンプレート",
+        "expected": "latex-jp-en-references-template",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "japanese-tts-comparison",
+          "short-url",
+          "isucon-shin",
+          "grantloom"
+        ],
+        "semantic_top5": [
+          "latex-jp-en-references-template",
+          "thesis_typst",
+          "japanese-tts-comparison",
+          "karabiner-lang",
+          "markdown_slide"
+        ],
+        "hybrid_top5": [
+          "latex-jp-en-references-template",
+          "japanese-tts-comparison",
+          "ccverbs",
+          "isucon-shin",
+          "thesis_typst"
+        ]
+      },
+      {
+        "query": "Markdownと図からスライドを作る",
+        "expected": "markdown_slide",
+        "lexical_top5": [
+          "markdown_slide",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "markdown_slide",
+          "page-checker",
+          "ryoshin0830",
+          "ghnew",
+          "short-url"
+        ],
+        "hybrid_top5": [
+          "markdown_slide",
+          "japanese-tts-comparison",
+          "page-checker",
+          "ryoshin0830",
+          "ghnew"
+        ]
+      },
+      {
+        "query": "日本語の読み上げ音声を複数モデルで聞き比べたい",
+        "expected": "japanese-tts-comparison",
+        "lexical_top5": [
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "grantloom",
+          "ccverbs"
+        ],
+        "semantic_top5": [
+          "japanese-tts-comparison",
+          "karabiner-lang",
+          "ccverbs",
+          "latex-jp-en-references-template",
+          "syncskills"
+        ],
+        "hybrid_top5": [
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "ccverbs",
+          "karabiner-lang",
+          "grantloom"
+        ]
+      },
+      {
+        "query": "外貨で払った買い物をGoogleスプレッドシートに記録する家計簿",
+        "expected": "expense-ledger",
+        "lexical_top5": [
+          "japanese-tts-comparison",
+          "google-mcp",
+          "grantloom",
+          "expense-ledger",
+          "latex-jp-en-references-template"
+        ],
+        "semantic_top5": [
+          "expense-ledger",
+          "kane",
+          "grantloom",
+          "google-mcp",
+          "markdown_slide"
+        ],
+        "hybrid_top5": [
+          "expense-ledger",
+          "google-mcp",
+          "grantloom",
+          "japanese-tts-comparison",
+          "kane"
+        ]
+      },
+      {
+        "query": "Claude Codeの待機中に表示される動詞を好きな言葉に変える",
+        "expected": "ccverbs",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "japanese-tts-comparison",
+          "isucon-shin",
+          "short-url",
+          "gwqcd"
+        ],
+        "semantic_top5": [
+          "ccverbs",
+          "syncskills",
+          "japanese-tts-comparison",
+          "karabiner-lang",
+          "ghnew"
+        ],
+        "hybrid_top5": [
+          "japanese-tts-comparison",
+          "ccverbs",
+          "syncskills",
+          "latex-jp-en-references-template",
+          "short-url"
+        ]
+      },
+      {
+        "query": "新しいGitHubリポジトリを作ってローカルにも取得する",
+        "expected": "ghnew",
+        "lexical_top5": [
+          "short-url",
+          "markdown_slide",
+          "isucon-shin",
+          "latex-jp-en-references-template",
+          "picking"
+        ],
+        "semantic_top5": [
+          "ghnew",
+          "ryoshin0830",
+          "ghqcd",
+          "gwqpull",
+          "gwqcd"
+        ],
+        "hybrid_top5": [
+          "isucon-shin",
+          "gwqpull",
+          "gwqadd",
+          "fzf-ghq-remote",
+          "short-url"
+        ]
+      },
+      {
+        "query": "すでに作ってあるgit worktreeに移動したい",
+        "expected": "gwqcd",
+        "lexical_top5": [
+          "picking",
+          "short-url",
+          "gwqcd",
+          "gwqadd",
+          "gwqpull"
+        ],
+        "semantic_top5": [
+          "gwqpull",
+          "gwqadd",
+          "gwqcd",
+          "ghqcd",
+          "ghnew"
+        ],
+        "hybrid_top5": [
+          "gwqpull",
+          "gwqadd",
+          "gwqcd",
+          "ghqcd",
+          "short-url"
+        ]
+      },
+      {
+        "query": "GitHubのPRのURLを渡してworktreeを作って移動したい",
+        "expected": "gwqpull",
+        "lexical_top5": [
+          "picking",
+          "japanese-tts-comparison",
+          "short-url",
+          "gwqpull",
+          "fzf-ghq-remote"
+        ],
+        "semantic_top5": [
+          "gwqpull",
+          "gwqadd",
+          "ghqcd",
+          "gwqcd",
+          "ghnew"
+        ],
+        "hybrid_top5": [
+          "gwqpull",
+          "gwqadd",
+          "gwqcd",
+          "short-url",
+          "ghqcd"
+        ]
+      },
+      {
+        "query": "今いるプロジェクトに新しいブランチとworktreeを作る",
+        "expected": "gwqadd",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "short-url",
+          "markdown_slide",
+          "japanese-tts-comparison",
+          "gwqcd"
+        ],
+        "semantic_top5": [
+          "gwqadd",
+          "gwqpull",
+          "gwqcd",
+          "ghqcd",
+          "ghnew"
+        ],
+        "hybrid_top5": [
+          "gwqadd",
+          "gwqcd",
+          "gwqpull",
+          "ghqcd",
+          "fzf-ghq-remote"
+        ]
+      },
+      {
+        "query": "ghqで管理しているリポジトリを選んでcdする",
+        "expected": "ghqcd",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "short-url",
+          "markdown_slide",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "ghqcd",
+          "ghnew",
+          "gwqpull",
+          "gwqcd",
+          "ryoshin0830"
+        ],
+        "hybrid_top5": [
+          "ghqcd",
+          "isucon-shin",
+          "gwqpull",
+          "gwqcd",
+          "fzf-ghq-remote"
+        ]
+      },
+      {
+        "query": "長いURLを短くして共有するサービス",
+        "expected": "short-url",
+        "lexical_top5": [
+          "short-url",
+          "japanese-tts-comparison",
+          "gwqpull",
+          "google-mcp",
+          "isucon-shin"
+        ],
+        "semantic_top5": [
+          "short-url",
+          "ghnew",
+          "ryoshin0830",
+          "grantloom",
+          "markdown_slide"
+        ],
+        "hybrid_top5": [
+          "short-url",
+          "ghnew",
+          "isucon-shin",
+          "google-mcp",
+          "grantloom"
+        ]
+      },
+      {
+        "query": "USキーボードの左右のCommandで日本語と英語を切り替える",
+        "expected": "karabiner-lang",
+        "lexical_top5": [
+          "isucon-shin",
+          "latex-jp-en-references-template",
+          "outlook-mcp",
+          "short-url",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "karabiner-lang",
+          "ccverbs",
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "syncskills"
+        ],
+        "hybrid_top5": [
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "ccverbs",
+          "japanese-tts-comparison",
+          "short-url"
+        ]
+      }
+    ],
+    "limitations": [
+      "Public repo descriptions and README only; no private content or issue/code embedding.",
+      "Hand-selected queries, 20 examples; not a blinded benchmark.",
+      "Existing OS disk cache not cleared; no cross-machine speed guarantee.",
+      "GitHub fetching, network transfer, and optional LLM reranking excluded from index/query timings.",
+      "FTS baseline is Japanese character trigrams plus ASCII terms with OR and BM25, not a production analyzer.",
+      "Model input limited to 384 tokens; a few prefixed 320-token chunks were truncated, with overlap retained."
+    ]
+  },
+  "e5": {
+    "date": "2026-10-26",
+    "hardware": "Apple M5, arm64, 32 GiB",
+    "model": {
+      "repo": "intfloat/multilingual-e5-small",
+      "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+      "download_seconds": 9.421353999998246,
+      "files_bytes": 492794646
+    },
+    "runtime": {
+      "python": "3.12.13 (main, May 10 2026, 19:20:41) [Clang 22.1.3 ]",
+      "mlx": "0.32.4",
+      "mlx_embeddings": "0.1.0",
+      "quantization": "Unquantized original checkpoint"
+    },
+    "corpus": {
+      "repos": 26,
+      "readmes": 24,
+      "chunks": 248,
+      "tokens_before_truncation_including_overlap": 74926,
+      "max_input_tokens_before_truncation": 404,
+      "embedding_max_tokens": 384,
+      "text_characters": 159972
+    },
+    "timings": {
+      "import_seconds": 0.6657029170019086,
+      "load_seconds": 0.6771207499987213,
+      "first_query_seconds": 0.9859058330039261,
+      "index_seconds": 2.9874963749971357,
+      "fts_build_seconds": 0.010633833000611048,
+      "unchanged_local_hash_seconds": 0.00030608400265919045,
+      "one_modified_chunk_embedding_seconds": 0.003024917001312133,
+      "warm_query_embedding": {
+        "n": 60,
+        "p50_ms": 1.8891045001510065,
+        "p95_ms": 2.0455232002859702,
+        "min_ms": 1.8348750018049031,
+        "max_ms": 2.626458001032006
+      },
+      "vector_compare_and_repo_aggregation": {
+        "n": 60,
+        "p50_ms": 0.031354000384453684,
+        "p95_ms": 0.03858720592688769,
+        "min_ms": 0.02958300319733098,
+        "max_ms": 0.06920799933141097
+      },
+      "fts_trigram_or_bm25": {
+        "n": 60,
+        "p50_ms": 0.15254149911925197,
+        "p95_ms": 0.24041904980549586,
+        "min_ms": 0.04658300167648122,
+        "max_ms": 0.5389590005506761
+      },
+      "warm_hybrid_total": {
+        "n": 60,
+        "p50_ms": 2.094916500936961,
+        "p95_ms": 2.25604789739009,
+        "min_ms": 1.914583997859154,
+        "max_ms": 2.8980420029256493
+      }
+    },
+    "storage": {
+      "vectors_bytes": 381056,
+      "fts_db_bytes": 1327104,
+      "corpus_json_bytes": 190771,
+      "mlx_peak_bytes": 1127663716,
+      "rss_peak_bytes": 1152122880
+    },
+    "quality": {
+      "lexical": {
+        "top1": 8,
+        "top5": 13,
+        "queries": 20
+      },
+      "semantic": {
+        "top1": 15,
+        "top5": 19,
+        "queries": 20
+      },
+      "hybrid": {
+        "top1": 11,
+        "top5": 17,
+        "queries": 20
+      }
+    },
+    "queries": [
+      {
+        "query": "AIのスキルとMCPを複数のパソコンで同期したい",
+        "expected": "syncskills",
+        "lexical_top5": [
+          "picking",
+          "short-url",
+          "google-mcp",
+          "outlook-mcp",
+          "grantloom"
+        ],
+        "semantic_top5": [
+          "grantloom",
+          "latex-jp-en-references-template",
+          "ccverbs",
+          "japanese-tts-comparison",
+          "syncskills"
+        ],
+        "hybrid_top5": [
+          "grantloom",
+          "picking",
+          "google-mcp",
+          "outlook-mcp",
+          "syncskills"
+        ]
+      },
+      {
+        "query": "oneset",
+        "expected": "syncskills",
+        "lexical_top5": [
+          "syncskills"
+        ],
+        "semantic_top5": [
+          "syncskills",
+          "ccverbs",
+          "expense-ledger",
+          "gwqpull",
+          "ghqcd"
+        ],
+        "hybrid_top5": [
+          "syncskills",
+          "ccverbs",
+          "expense-ledger",
+          "gwqpull",
+          "ghqcd"
+        ]
+      },
+      {
+        "query": "GoogleのOAuthトークンを1Passwordに保存したい",
+        "expected": "grantloom",
+        "lexical_top5": [
+          "outlook-mcp",
+          "isucon-shin",
+          "japanese-tts-comparison",
+          "grantloom",
+          "short-url"
+        ],
+        "semantic_top5": [
+          "grantloom",
+          "expense-ledger",
+          "isucon-shin",
+          "japanese-tts-comparison",
+          "ccverbs"
+        ],
+        "hybrid_top5": [
+          "grantloom",
+          "isucon-shin",
+          "japanese-tts-comparison",
+          "outlook-mcp",
+          "expense-ledger"
+        ]
+      },
+      {
+        "query": "GoogleカレンダーやGmailをAIから操作するMCPサーバー",
+        "expected": "google-mcp",
+        "lexical_top5": [
+          "outlook-mcp",
+          "google-mcp",
+          "short-url",
+          "grantloom",
+          "isucon-shin"
+        ],
+        "semantic_top5": [
+          "google-mcp",
+          "outlook-mcp",
+          "expense-ledger",
+          "grantloom",
+          "isucon-shin"
+        ],
+        "hybrid_top5": [
+          "outlook-mcp",
+          "google-mcp",
+          "grantloom",
+          "short-url",
+          "isucon-shin"
+        ]
+      },
+      {
+        "query": "OutlookのメールをMCPで検索して読みたい",
+        "expected": "outlook-mcp",
+        "lexical_top5": [
+          "outlook-mcp",
+          "isucon-shin",
+          "picking",
+          "japanese-tts-comparison",
+          "google-mcp"
+        ],
+        "semantic_top5": [
+          "outlook-mcp",
+          "expense-ledger",
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "google-mcp"
+        ],
+        "hybrid_top5": [
+          "outlook-mcp",
+          "isucon-shin",
+          "google-mcp",
+          "japanese-tts-comparison",
+          "expense-ledger"
+        ]
+      },
+      {
+        "query": "スキャンした本の抜けページを見つけるツール",
+        "expected": "page-checker",
+        "lexical_top5": [
+          "outlook-mcp",
+          "mp3-album-info-renamer",
+          "short-url",
+          "latex-jp-en-references-template",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "latex-jp-en-references-template",
+          "page-checker",
+          "isucon-shin",
+          "ccverbs",
+          "short-url"
+        ],
+        "hybrid_top5": [
+          "latex-jp-en-references-template",
+          "short-url",
+          "outlook-mcp",
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison"
+        ]
+      },
+      {
+        "query": "名簿をランダムにチーム分けするコマンド",
+        "expected": "picking",
+        "lexical_top5": [
+          "picking",
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "short-url"
+        ],
+        "semantic_top5": [
+          "picking",
+          "isucon-shin",
+          "ccverbs",
+          "short-url",
+          "latex-jp-en-references-template"
+        ],
+        "hybrid_top5": [
+          "picking",
+          "mp3-album-info-renamer",
+          "isucon-shin",
+          "latex-jp-en-references-template",
+          "short-url"
+        ]
+      },
+      {
+        "query": "MP3の曲名をファイル名と同じに揃えたい",
+        "expected": "mp3-album-info-renamer",
+        "lexical_top5": [
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "short-url"
+        ],
+        "semantic_top5": [
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "ccverbs",
+          "short-url",
+          "latex-jp-en-references-template"
+        ],
+        "hybrid_top5": [
+          "mp3-album-info-renamer",
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "short-url",
+          "isucon-shin"
+        ]
+      },
+      {
+        "query": "日本語と英語の参考文献を分けて表示するLaTeXテンプレート",
+        "expected": "latex-jp-en-references-template",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "japanese-tts-comparison",
+          "short-url",
+          "isucon-shin",
+          "grantloom"
+        ],
+        "semantic_top5": [
+          "latex-jp-en-references-template",
+          "ccverbs",
+          "japanese-tts-comparison",
+          "gmo-quiz",
+          "portfolio"
+        ],
+        "hybrid_top5": [
+          "latex-jp-en-references-template",
+          "japanese-tts-comparison",
+          "ccverbs",
+          "short-url",
+          "isucon-shin"
+        ]
+      },
+      {
+        "query": "Markdownと図からスライドを作る",
+        "expected": "markdown_slide",
+        "lexical_top5": [
+          "markdown_slide",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "markdown_slide",
+          "short-url",
+          "gmo-quiz",
+          "ccverbs",
+          "outlook-mcp"
+        ],
+        "hybrid_top5": [
+          "markdown_slide",
+          "japanese-tts-comparison",
+          "short-url",
+          "gmo-quiz",
+          "ccverbs"
+        ]
+      },
+      {
+        "query": "日本語の読み上げ音声を複数モデルで聞き比べたい",
+        "expected": "japanese-tts-comparison",
+        "lexical_top5": [
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "grantloom",
+          "ccverbs"
+        ],
+        "semantic_top5": [
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "ccverbs",
+          "expense-ledger",
+          "gmo-quiz"
+        ],
+        "hybrid_top5": [
+          "japanese-tts-comparison",
+          "latex-jp-en-references-template",
+          "ccverbs",
+          "grantloom",
+          "expense-ledger"
+        ]
+      },
+      {
+        "query": "外貨で払った買い物をGoogleスプレッドシートに記録する家計簿",
+        "expected": "expense-ledger",
+        "lexical_top5": [
+          "japanese-tts-comparison",
+          "google-mcp",
+          "grantloom",
+          "expense-ledger",
+          "latex-jp-en-references-template"
+        ],
+        "semantic_top5": [
+          "expense-ledger",
+          "japanese-tts-comparison",
+          "isucon-shin",
+          "outlook-mcp",
+          "short-url"
+        ],
+        "hybrid_top5": [
+          "japanese-tts-comparison",
+          "expense-ledger",
+          "google-mcp",
+          "grantloom",
+          "latex-jp-en-references-template"
+        ]
+      },
+      {
+        "query": "Claude Codeの待機中に表示される動詞を好きな言葉に変える",
+        "expected": "ccverbs",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "japanese-tts-comparison",
+          "short-url",
+          "gwqcd"
+        ],
+        "semantic_top5": [
+          "ccverbs",
+          "latex-jp-en-references-template",
+          "picking",
+          "isucon-shin",
+          "gmo-quiz"
+        ],
+        "hybrid_top5": [
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "ccverbs",
+          "short-url",
+          "japanese-tts-comparison"
+        ]
+      },
+      {
+        "query": "新しいGitHubリポジトリを作ってローカルにも取得する",
+        "expected": "ghnew",
+        "lexical_top5": [
+          "short-url",
+          "isucon-shin",
+          "markdown_slide",
+          "latex-jp-en-references-template",
+          "picking"
+        ],
+        "semantic_top5": [
+          "short-url",
+          "gwqadd",
+          "ghqcd",
+          "latex-jp-en-references-template",
+          "isucon-shin"
+        ],
+        "hybrid_top5": [
+          "short-url",
+          "isucon-shin",
+          "latex-jp-en-references-template",
+          "gwqadd",
+          "ghqcd"
+        ]
+      },
+      {
+        "query": "すでに作ってあるgit worktreeに移動したい",
+        "expected": "gwqcd",
+        "lexical_top5": [
+          "picking",
+          "short-url",
+          "gwqcd",
+          "gwqadd",
+          "gwqpull"
+        ],
+        "semantic_top5": [
+          "gwqcd",
+          "gwqadd",
+          "short-url",
+          "ghqcd",
+          "gwqpull"
+        ],
+        "hybrid_top5": [
+          "gwqcd",
+          "short-url",
+          "gwqadd",
+          "ghqcd",
+          "gwqpull"
+        ]
+      },
+      {
+        "query": "GitHubのPRのURLを渡してworktreeを作って移動したい",
+        "expected": "gwqpull",
+        "lexical_top5": [
+          "picking",
+          "japanese-tts-comparison",
+          "short-url",
+          "gwqpull",
+          "fzf-ghq-remote"
+        ],
+        "semantic_top5": [
+          "short-url",
+          "gwqcd",
+          "gwqadd",
+          "isucon-shin",
+          "gwqpull"
+        ],
+        "hybrid_top5": [
+          "short-url",
+          "gwqcd",
+          "gwqpull",
+          "japanese-tts-comparison",
+          "gwqadd"
+        ]
+      },
+      {
+        "query": "今いるプロジェクトに新しいブランチとworktreeを作る",
+        "expected": "gwqadd",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "short-url",
+          "markdown_slide",
+          "japanese-tts-comparison",
+          "gwqcd"
+        ],
+        "semantic_top5": [
+          "gwqadd",
+          "short-url",
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "ccverbs"
+        ],
+        "hybrid_top5": [
+          "latex-jp-en-references-template",
+          "short-url",
+          "gwqadd",
+          "gwqcd",
+          "markdown_slide"
+        ]
+      },
+      {
+        "query": "ghqで管理しているリポジトリを選んでcdする",
+        "expected": "ghqcd",
+        "lexical_top5": [
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "short-url",
+          "markdown_slide",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "ghqcd",
+          "gwqcd",
+          "gwqpull",
+          "fzf-ghq-remote",
+          "short-url"
+        ],
+        "hybrid_top5": [
+          "ghqcd",
+          "short-url",
+          "gwqcd",
+          "fzf-ghq-remote",
+          "gwqpull"
+        ]
+      },
+      {
+        "query": "長いURLを短くして共有するサービス",
+        "expected": "short-url",
+        "lexical_top5": [
+          "short-url",
+          "japanese-tts-comparison",
+          "gwqpull",
+          "isucon-shin",
+          "fzf-ghq-remote"
+        ],
+        "semantic_top5": [
+          "short-url",
+          "isucon-shin",
+          "japanese-tts-comparison",
+          "ccverbs",
+          "outlook-mcp"
+        ],
+        "hybrid_top5": [
+          "short-url",
+          "japanese-tts-comparison",
+          "isucon-shin",
+          "outlook-mcp",
+          "ccverbs"
+        ]
+      },
+      {
+        "query": "USキーボードの左右のCommandで日本語と英語を切り替える",
+        "expected": "karabiner-lang",
+        "lexical_top5": [
+          "isucon-shin",
+          "latex-jp-en-references-template",
+          "outlook-mcp",
+          "short-url",
+          "japanese-tts-comparison"
+        ],
+        "semantic_top5": [
+          "ccverbs",
+          "latex-jp-en-references-template",
+          "japanese-tts-comparison",
+          "karabiner-lang",
+          "isucon-shin"
+        ],
+        "hybrid_top5": [
+          "latex-jp-en-references-template",
+          "isucon-shin",
+          "ccverbs",
+          "japanese-tts-comparison",
+          "short-url"
+        ]
+      }
+    ],
+    "limitations": [
+      "Public repo descriptions and README only; no private content or issue/code embedding.",
+      "Hand-selected queries, 20 examples; not a blinded benchmark.",
+      "Existing OS disk cache not cleared; no cross-machine speed guarantee.",
+      "GitHub fetching, network transfer, and optional LLM reranking excluded from index/query timings.",
+      "FTS baseline is Japanese character trigrams plus ASCII terms with OR and BM25, not a production analyzer.",
+      "Tokenizer differs between models, so chunk count is 248 instead of 220; this is a practical pipeline comparison, not isolated model FLOPs."
+    ]
+  },
+  "readme_fetch": {
+    "repos_requested": 26,
+    "seconds": 12.580518208000285,
+    "readmes": 24,
+    "bytes": 179393,
+    "results": [
+      {
+        "repo": "latex-jp-en-references-template",
+        "seconds": 0.5089837500054273,
+        "exit": 0,
+        "bytes": 5486
+      },
+      {
+        "repo": "thesis_typst",
+        "seconds": 0.4519445839978289,
+        "exit": 1,
+        "bytes": 0
+      },
+      {
+        "repo": "short-url",
+        "seconds": 0.48727170799975283,
+        "exit": 0,
+        "bytes": 9260
+      },
+      {
+        "repo": "picking",
+        "seconds": 0.4569360419991426,
+        "exit": 0,
+        "bytes": 5062
+      },
+      {
+        "repo": "ghnew",
+        "seconds": 0.6366900409993832,
+        "exit": 0,
+        "bytes": 8418
+      },
+      {
+        "repo": "syncskills",
+        "seconds": 0.568405083999096,
+        "exit": 0,
+        "bytes": 9996
+      },
+      {
+        "repo": "google-mcp",
+        "seconds": 0.4557188329999917,
+        "exit": 0,
+        "bytes": 1568
+      },
+      {
+        "repo": "ghqcd",
+        "seconds": 0.4776765409988002,
+        "exit": 0,
+        "bytes": 5067
+      },
+      {
+        "repo": "grantloom",
+        "seconds": 0.5241756250034086,
+        "exit": 0,
+        "bytes": 29703
+      },
+      {
+        "repo": "markdown_slide",
+        "seconds": 0.5353219579992583,
+        "exit": 0,
+        "bytes": 1786
+      },
+      {
+        "repo": "outlook-mcp",
+        "seconds": 0.4337199170040549,
+        "exit": 0,
+        "bytes": 2566
+      },
+      {
+        "repo": "page-checker",
+        "seconds": 0.3952872500012745,
+        "exit": 0,
+        "bytes": 1450
+      },
+      {
+        "repo": "ryoshin0830",
+        "seconds": 0.4955515830006334,
+        "exit": 0,
+        "bytes": 477
+      },
+      {
+        "repo": "kane",
+        "seconds": 0.4325319580020732,
+        "exit": 0,
+        "bytes": 174
+      },
+      {
+        "repo": "gwqpull",
+        "seconds": 0.4977884170002653,
+        "exit": 0,
+        "bytes": 12265
+      },
+      {
+        "repo": "expense-ledger",
+        "seconds": 0.45278212500124937,
+        "exit": 0,
+        "bytes": 4232
+      },
+      {
+        "repo": "mp3-album-info-renamer",
+        "seconds": 0.4299214589991607,
+        "exit": 0,
+        "bytes": 1022
+      },
+      {
+        "repo": "ccverbs",
+        "seconds": 0.45387245799793163,
+        "exit": 0,
+        "bytes": 26423
+      },
+      {
+        "repo": "gwqadd",
+        "seconds": 0.5250104160004412,
+        "exit": 0,
+        "bytes": 13381
+      },
+      {
+        "repo": "isucon-shin",
+        "seconds": 0.4410605000011856,
+        "exit": 0,
+        "bytes": 7211
+      },
+      {
+        "repo": "gmo-quiz",
+        "seconds": 0.46344116699765436,
+        "exit": 0,
+        "bytes": 1450
+      },
+      {
+        "repo": "fzf-ghq-remote",
+        "seconds": 0.4242917499941541,
+        "exit": 0,
+        "bytes": 7179
+      },
+      {
+        "repo": "gwqcd",
+        "seconds": 0.5363148750038818,
+        "exit": 0,
+        "bytes": 10736
+      },
+      {
+        "repo": "karabiner-lang",
+        "seconds": 0.41820429100334877,
+        "exit": 1,
+        "bytes": 0
+      },
+      {
+        "repo": "portfolio",
+        "seconds": 0.5518835420007235,
+        "exit": 0,
+        "bytes": 1450
+      },
+      {
+        "repo": "japanese-tts-comparison",
+        "seconds": 0.5254943749969243,
+        "exit": 0,
+        "bytes": 13031
+      }
+    ],
+    "concurrency": 1
+  },
+  "conditional_request": {
+    "first_seconds": 0.3339169579994632,
+    "conditional_seconds": 0.42935162499634316,
+    "conditional_status": [
+      "HTTP/2.0 304 Not Modified"
+    ],
+    "exit": 1,
+    "etag_present": true
+  },
+  "new_process_startups": [
+    {
+      "model": "qwen",
+      "repeat": 0,
+      "wall_seconds": 1.0034796249965439,
+      "events": [
+        {
+          "event": "loaded",
+          "import_seconds": 0.5871934169990709,
+          "load_seconds": 0.24122295800043503,
+          "first_query_seconds": 0.029766208004730288,
+          "process_start_to_first_result_seconds": 0.8584049580022111
+        },
+        {
+          "event": "cold_process_complete",
+          "rss_peak_bytes": 697843712,
+          "mlx_peak_bytes": 474620354
+        }
+      ]
+    },
+    {
+      "model": "qwen",
+      "repeat": 1,
+      "wall_seconds": 1.0122197090022382,
+      "events": [
+        {
+          "event": "loaded",
+          "import_seconds": 0.5876934999978403,
+          "load_seconds": 0.246547417002148,
+          "first_query_seconds": 0.03007274999981746,
+          "process_start_to_first_result_seconds": 0.8645319169954746
+        },
+        {
+          "event": "cold_process_complete",
+          "rss_peak_bytes": 698171392,
+          "mlx_peak_bytes": 474620354
+        }
+      ]
+    },
+    {
+      "model": "qwen",
+      "repeat": 2,
+      "wall_seconds": 1.000359457997547,
+      "events": [
+        {
+          "event": "loaded",
+          "import_seconds": 0.5851899170011166,
+          "load_seconds": 0.23951304099318804,
+          "first_query_seconds": 0.029955457997857593,
+          "process_start_to_first_result_seconds": 0.8548864170006709
+        },
+        {
+          "event": "cold_process_complete",
+          "rss_peak_bytes": 697892864,
+          "mlx_peak_bytes": 474620354
+        }
+      ]
+    },
+    {
+      "model": "e5",
+      "repeat": 0,
+      "wall_seconds": 1.3683908750026603,
+      "events": [
+        {
+          "event": "loaded",
+          "import_seconds": 0.5856394170041312,
+          "load_seconds": 0.6305322920015897,
+          "first_query_seconds": 0.012521083001047373,
+          "process_start_to_first_result_seconds": 1.2289512920033303
+        },
+        {
+          "event": "cold_process_complete",
+          "rss_peak_bytes": 1151549440,
+          "mlx_peak_bytes": 476227996
+        }
+      ]
+    },
+    {
+      "model": "e5",
+      "repeat": 1,
+      "wall_seconds": 1.388173833998735,
+      "events": [
+        {
+          "event": "loaded",
+          "import_seconds": 0.5890926670035697,
+          "load_seconds": 0.6469292089968803,
+          "first_query_seconds": 0.012254708999535069,
+          "process_start_to_first_result_seconds": 1.2484905829987838
+        },
+        {
+          "event": "cold_process_complete",
+          "rss_peak_bytes": 1151598592,
+          "mlx_peak_bytes": 476227980
+        }
+      ]
+    },
+    {
+      "model": "e5",
+      "repeat": 2,
+      "wall_seconds": 1.3885405840046587,
+      "events": [
+        {
+          "event": "loaded",
+          "import_seconds": 0.5930549999975483,
+          "load_seconds": 0.6458986249999725,
+          "first_query_seconds": 0.01259783300338313,
+          "process_start_to_first_result_seconds": 1.2517705409991322
+        },
+        {
+          "event": "cold_process_complete",
+          "rss_peak_bytes": 1151401984,
+          "mlx_peak_bytes": 476227980
+        }
+      ]
+    }
+  ],
+  "first_environment_smoke": {
+    "import_seconds": 3.992682665993925,
+    "model_load_seconds": 0.2461676669990993,
+    "first_query_seconds": 0.3935066670019296,
+    "note": "First probe, before shader/import caches were warm. Captured in tool output; not a clean-boot benchmark."
+  },
+  "security_checks": {
+    "network_block_profile": "sandbox-exec: deny network*",
+    "outbound_connect_denied_errno": 1,
+    "offline_qwen_query_success": true,
+    "offline_start_to_result_seconds": 0.9168968339945422,
+    "filevault": "On",
+    "temporary_directory_mode": "0700",
+    "not_a_comprehensive_security_audit": true
+  },
+  "corpus_sha256": "6c754a75a8e47aee5b32e043d690f0605ca32a77696b27d2dbd19cf2e30d7147",
+  "benchmark_script_sha256": "6e28f36f6a3d65361ebb9a6ad6229a425ff2d32c1fb2f3b598ca506a84d92e21",
+  "corpus_sources": [
+    {
+      "repo": "latex-jp-en-references-template",
+      "url": "https://github.com/ryoshin0830/latex-jp-en-references-template",
+      "readme_blob_sha": "fff3146cb18a199e9d3d103a0527a254badd4fda"
+    },
+    {
+      "repo": "thesis_typst",
+      "url": "https://github.com/ryoshin0830/thesis_typst",
+      "readme_blob_sha": null
+    },
+    {
+      "repo": "short-url",
+      "url": "https://github.com/ryoshin0830/short-url",
+      "readme_blob_sha": "e636dd0a2c97fa9b05eddcd543f5f1acf7e7a941"
+    },
+    {
+      "repo": "picking",
+      "url": "https://github.com/ryoshin0830/picking",
+      "readme_blob_sha": "bce702a367cbf1a57c84dfa8ce5a034cc4fc58bb"
+    },
+    {
+      "repo": "ghnew",
+      "url": "https://github.com/ryoshin0830/ghnew",
+      "readme_blob_sha": "29e6fd3c1cad49fb178168c7710acbee9eea66ba"
+    },
+    {
+      "repo": "syncskills",
+      "url": "https://github.com/ryoshin0830/syncskills",
+      "readme_blob_sha": "d2429562550e60b944bafa830837232e61aecc4f"
+    },
+    {
+      "repo": "google-mcp",
+      "url": "https://github.com/ryoshin0830/google-mcp",
+      "readme_blob_sha": "af3542b7a111b444abf143bbf9833a73e484309b"
+    },
+    {
+      "repo": "ghqcd",
+      "url": "https://github.com/ryoshin0830/ghqcd",
+      "readme_blob_sha": "local README at commit 5f7f77a0dd311b65b0ca57f4e09a0f3a474e83ee"
+    },
+    {
+      "repo": "grantloom",
+      "url": "https://github.com/ryoshin0830/grantloom",
+      "readme_blob_sha": "f3c8e62ca46a7f331e1169bd0a3c23f9de8f4b53"
+    },
+    {
+      "repo": "markdown_slide",
+      "url": "https://github.com/ryoshin0830/markdown_slide",
+      "readme_blob_sha": "9e8670fb735d4063d0f14ab5a7f4ba6f63cee4cc"
+    },
+    {
+      "repo": "outlook-mcp",
+      "url": "https://github.com/ryoshin0830/outlook-mcp",
+      "readme_blob_sha": "1020b61460ddb276acb133db4ec19fab4817e719"
+    },
+    {
+      "repo": "page-checker",
+      "url": "https://github.com/ryoshin0830/page-checker",
+      "readme_blob_sha": "e215bc4ccf138bbc38ad58ad57e92135484b3c0f"
+    },
+    {
+      "repo": "ryoshin0830",
+      "url": "https://github.com/ryoshin0830/ryoshin0830",
+      "readme_blob_sha": "3eb999b6a98d59a98edc58f821d807226edc0824"
+    },
+    {
+      "repo": "kane",
+      "url": "https://github.com/ryoshin0830/kane",
+      "readme_blob_sha": "997e583fa4f6972ac40c2f34bb4176e74c46ec06"
+    },
+    {
+      "repo": "gwqpull",
+      "url": "https://github.com/ryoshin0830/gwqpull",
+      "readme_blob_sha": "27fe65fbced71b1956492d99cddbbe054d8aa250"
+    },
+    {
+      "repo": "expense-ledger",
+      "url": "https://github.com/ryoshin0830/expense-ledger",
+      "readme_blob_sha": "367f07bb4df774f8743ccd4d68028d14db2854e1"
+    },
+    {
+      "repo": "mp3-album-info-renamer",
+      "url": "https://github.com/ryoshin0830/mp3-album-info-renamer",
+      "readme_blob_sha": "b20cb6d3454809f7ec71384bf2207e046ddf934a"
+    },
+    {
+      "repo": "ccverbs",
+      "url": "https://github.com/ryoshin0830/ccverbs",
+      "readme_blob_sha": "204c395a4dcda7ffdcbee62087e2d540345cf1a3"
+    },
+    {
+      "repo": "gwqadd",
+      "url": "https://github.com/ryoshin0830/gwqadd",
+      "readme_blob_sha": "f0e7319355751b905907659db6f3ac89904ead0c"
+    },
+    {
+      "repo": "isucon-shin",
+      "url": "https://github.com/ryoshin0830/isucon-shin",
+      "readme_blob_sha": "c5bb046c95ca2383a6ba102f057e2efb33aeb4a4"
+    },
+    {
+      "repo": "gmo-quiz",
+      "url": "https://github.com/ryoshin0830/gmo-quiz",
+      "readme_blob_sha": "e215bc4ccf138bbc38ad58ad57e92135484b3c0f"
+    },
+    {
+      "repo": "fzf-ghq-remote",
+      "url": "https://github.com/ryoshin0830/fzf-ghq-remote",
+      "readme_blob_sha": "b2445b761805da6aaa31b68a0f5186f6d7521439"
+    },
+    {
+      "repo": "gwqcd",
+      "url": "https://github.com/ryoshin0830/gwqcd",
+      "readme_blob_sha": "1a92b2c3cb6a6d635a05ee904e94b060faaacaa8"
+    },
+    {
+      "repo": "karabiner-lang",
+      "url": "https://github.com/ryoshin0830/karabiner-lang",
+      "readme_blob_sha": null
+    },
+    {
+      "repo": "portfolio",
+      "url": "https://github.com/ryoshin0830/portfolio",
+      "readme_blob_sha": "e215bc4ccf138bbc38ad58ad57e92135484b3c0f"
+    },
+    {
+      "repo": "japanese-tts-comparison",
+      "url": "https://github.com/ryoshin0830/japanese-tts-comparison",
+      "readme_blob_sha": "cc8f01bc25344dd56aaa87d00bd37b5f99fcd94c"
+    }
+  ]
+}
