@@ -60,6 +60,10 @@ if name == "qwen3-0.6b":
 if name == "gemma2":
     assert m["q"] == st_prompts["query"] + "{}", st_prompts
     assert m["d"] == st_prompts["document"] + "{}", st_prompts
+if name.startswith("harrier"):
+    assert m["q"] == st_prompts["web_search_query"] + "{}" and m["d"] == "{}", st_prompts
+if name.startswith("granite"):
+    assert st_prompts == {"query": "", "document": ""} and m["q"] == m["d"] == "{}", st_prompts
 
 
 def ntok(text):

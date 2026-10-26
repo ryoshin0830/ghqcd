@@ -3,7 +3,7 @@ import json, sys
 import numpy as np
 from common import load_queries
 
-METHODS = ["lexical", "e5-small", "qwen3-0.6b", "gemma2", "bge-m3"]
+METHODS = ["lexical", "e5-small", "qwen3-0.6b", "gemma2", "bge-m3", "harrier-0.6b", "harrier-270m", "granite-311m", "granite-97m"]
 Q = {q["id"]: q for q in load_queries()}
 R = {m: json.load(open(f"results/{m}.json")) for m in METHODS}
 
