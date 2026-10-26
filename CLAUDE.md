@@ -19,7 +19,9 @@ A small Node.js CLI (~600 lines, zero runtime dependencies) that:
    (`--quiet`), or one line of JSON (`--json`).
 4. Emits a shell function on `--init <shell>` so the *shell* performs the `cd`.
 
-Single source of behavior: `bin/ghqcd.mjs`.
+Single source of behavior: `bin/ghqcd.mjs`. The opt-in search index behind
+`--index`, `--issues` and `--semantic` lives in `lib/search-index.mjs` and is
+imported only when one of those flags is given (I12).
 
 Sibling packages built to the same contract: `gwqcd`, `gwqpull`, `ghnew`.
 
@@ -130,7 +132,8 @@ Error (stderr, exit ≠ 0):
 ```
 
 `matches` exists so a caller can detect that it got the best-scoring candidate
-of several rather than a unique hit. Adding fields is fine; removing or
+of several rather than a unique hit. `--semantic` adds `score`; `--issues` adds
+`issue` (a number) when an issue line was chosen. Adding fields is fine; removing or
 renaming requires a `schemaVersion` bump.
 
 stderr *carries* the error line; it is not exclusively JSON. Node warnings and
@@ -145,6 +148,7 @@ select the line starting with `{`, never parse the whole stream.
 | 1    | `E_VALIDATION`  | flag conflict, extra positional, parseArgs error |
 | 1    | `E_GHQ`         | `ghq list -p` failed                             |
 | 1    | `E_FZF`         | fzf could not be run, or exited unexpectedly     |
+| 1    | `E_INDEX`       | no index for `--issues` / `--semantic`, or `--index` failed |
 | 2    | `E_NO_MATCH`    | no repositories, or the query matched none       |
 | 3    | `E_AMBIGUOUS`   | non-interactive with no query                    |
 | 127  | `E_DEPS`        | `ghq`/`fzf` missing and user declined install    |
@@ -184,12 +188,47 @@ the line people copy.
 latency and typosquat surface. The one prompt we need (`confirmYesNo`) is
 fifteen lines over the raw-mode keypress reader we already have.
 
+### I9b. The embedding runtime is installed, not depended on
+
+`--semantic` needs an ONNX runtime and a tokenizer. They are **not** in
+`package.json`: `ghqcd --index --semantic` copies `lib/runtime/package.json` and
+its lockfile into the cache and runs `npm ci --ignore-scripts` there, then
+imports them by absolute path. So `npx ghqcd` stays dependency-free, nothing
+runs an install script, and every transitive version and integrity hash is
+pinned in `lib/runtime/package-lock.json`. Bump them by regenerating that
+lockfile, never with a range.
+
+The runtime is `onnxruntime-web` (WebAssembly), on purpose: `onnxruntime-node`
+is about four times faster, but ships ~300 MB of per-OS binaries, has a
+postinstall, and has no Intel-Mac build. Measurements are in
+`docs/research/semantic-search-plan.md`.
+
 ### I10. Raw mode cleanup
 
 `process.stdin.setRawMode(true)` is guarded by `stdin.isTTY`. Cleanup runs on
 `exit`, `SIGTERM`, `SIGHUP`, `uncaughtException`, and inside `try/finally`.
 Cursor restore (`\x1b[?25h`) is guarded by `stderr.isTTY` to prevent escape
 bytes leaking into files.
+
+### I12. The search index
+
+- Explicit: only `--index` writes it. `--issues` and `--semantic` read it and
+  exit `E_INDEX` when it is missing. Nothing refreshes behind the user's back.
+- Private: it holds issue text from private repositories. The directory is
+  0700 and every file 0600, written atomically. Never log issue text.
+- Issues only for repositories the viewer can push to (`viewerPermission`
+  ADMIN / MAINTAIN / WRITE), the 100 most recently updated.
+- The model is pinned by revision and SHA-256 (`MODEL` in
+  `lib/search-index.mjs`). Use the **fp16** export: it matches the reference
+  FP32 model exactly, while the int8 export drifted (cosine median 0.835) and
+  lost about a tenth of the correct answers. Changing the model changes
+  `MODEL.key`, which keys the vector files, so old vectors are never mixed in.
+- Repository score is max(best README chunk, best issue chunk − 0.1). Without
+  the penalty, a repository with many issues wins queries it should not.
+- `--issues` matches exactly (`fzf --exact`): fuzzy matching over issue bodies
+  matched nonsense queries.
+- Progress for `--index` goes to stderr even under `--quiet`, because the shell
+  function adds `--quiet` to every call.
 
 ### I11. Engines
 
@@ -291,6 +330,8 @@ drive the interactive fzf UI by piping keystrokes into `script` — fzf reads
 ## Where things live
 
 - `bin/ghqcd.mjs` — the entire CLI (ESM, top-level await OK).
+- `lib/search-index.mjs` — `--index` / `--issues` / `--semantic` (I12).
+- `lib/runtime/` — the pinned embedding runtime installed into the cache (I9b).
 - `package.json` — `bin.ghqcd`, `engines.node`, `files`, `prepublishOnly`.
 - `.npmignore` — defense-in-depth complement to `files`.
 - `.claude/skills/ghqcd/SKILL.md` — agent USE contract. Changing it is a
@@ -305,6 +346,9 @@ drive the interactive fzf UI by piping keystrokes into `script` — fzf reads
 - **A `--zoxide`-style frecency database.** `ghq list` is the source of truth;
   ranking belongs to fzf.
 - **Caching `ghq list` output.** It is a directory walk of a few milliseconds,
-  and a stale cache after `ghq get` is worse than the walk.
+  and a stale cache after `ghq get` is worse than the walk. (The search index
+  is different: it needs the network, and it is rebuilt only on `--index`.
+  `--issues` and `--semantic` still take the repository list from `ghq list`,
+  and drop index entries for repositories that are gone.)
 - **A prompt library, a logger, or a clipboard package.** See I9.
 - **Telemetry / analytics.**

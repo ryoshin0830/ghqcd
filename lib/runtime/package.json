@@ -1,0 +1,9 @@
+{
+  "name": "ghqcd-semantic-runtime",
+  "private": true,
+  "description": "Installed by `ghqcd --index --semantic` into the cache with --ignore-scripts. Not part of ghqcd's own dependencies.",
+  "dependencies": {
+    "@huggingface/tokenizers": "0.2.0",
+    "onnxruntime-web": "1.30.0"
+  }
+}

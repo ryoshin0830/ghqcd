@@ -54,6 +54,29 @@ silently break the flow):
 npx -y ghqcd@^0.1 --json <query>
 ```
 
+When the user describes what a repository *does* rather than its name — in any
+language — and `ghqcd --index --semantic` has been run:
+
+```bash
+ghqcd --semantic --json "the tool that syncs AI skills across machines"
+```
+
+The payload adds `"score"` (cosine of the best chunk, minus 0.1 for issue
+chunks; higher is closer). `matches` is the number
+of ranked repositories, so it is always > 1 here; treat the result as a
+suggestion and confirm with the user before acting on it.
+
+When the user remembers an issue rather than the repository:
+
+```bash
+ghqcd --issues --json "upload stalls"
+```
+
+The payload adds `"issue": <number>` when an issue line won. Both modes exit 1
+with `E_INDEX` when no index exists: tell the user to run `ghqcd --index`
+(or `ghqcd --index --semantic`, which downloads ~1.2 GB once). Do not run it
+yourself unasked — it reads private issues through the GitHub API.
+
 To enumerate instead of picking:
 
 ```bash
@@ -107,6 +130,7 @@ best-guess path can run commands in the wrong repository.
 | `E_VALIDATION`  | 1    | flag conflict or extra positional                |
 | `E_GHQ`         | 1    | `ghq list -p` failed                             |
 | `E_FZF`         | 1    | fzf could not be run                             |
+| `E_INDEX`       | 1    | no index for --issues / --semantic, or --index failed |
 | `E_NO_MATCH`    | 2    | no repositories, or the query matched none       |
 | `E_AMBIGUOUS`   | 3    | called without a query and without a TTY         |
 | `E_DEPS`        | 127  | `ghq` or `fzf` missing                           |

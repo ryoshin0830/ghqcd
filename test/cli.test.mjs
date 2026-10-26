@@ -3,8 +3,9 @@
 // in CLAUDE.md — everything reachable without a terminal lives here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import { mkdtempSync, writeFileSync, chmodSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -327,4 +328,103 @@ test('re-sourcing is idempotent even with a stale function defined', (t) => {
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^ghqcd \d+\.\d+\.\d+/m, 'the new function must have replaced the stale one');
   assert.doesNotMatch(r.stderr, /cd:|no such file/);
+});
+
+// ── search index (--index, --issues, --semantic) ─────────────────────────────
+//
+// GitHub is a local fake: GHQCD_GITHUB_API points the GraphQL client at it.
+// The child runs asynchronously so this process can answer its requests.
+
+function runAsync(args, env) {
+  const shims = makeShims();
+  const childEnv = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', ...env };
+  delete childEnv.FORCE_COLOR; // see run()
+  const child = spawn(process.execPath, [BIN, ...args], { env: childEnv });
+  let stdout = '', stderr = '';
+  child.stdout.on('data', (b) => { stdout += b; });
+  child.stderr.on('data', (b) => { stderr += b; });
+  return new Promise((resolve) => child.on('close', (status) => {
+    rmSync(shims, { recursive: true, force: true });
+    resolve({ status, stdout, stderr });
+  }));
+}
+
+async function fakeGitHub() {
+  const issues = {
+    apple: [{ number: 7, title: 'Timeout when syncing', body: 'The upload stalls after 30 seconds.', state: 'OPEN' }],
+    banana: [],
+  };
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      const { query, variables } = JSON.parse(body);
+      const repository = query.includes('issues')
+        ? { issues: { nodes: issues[variables.name] ?? [] } }
+        : { description: `${variables.name} description`, viewerPermission: variables.name === 'cherry' ? 'READ' : 'ADMIN' };
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ data: { repository } }));
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return { server, url: `http://127.0.0.1:${server.address().port}/graphql` };
+}
+
+function tempCache() {
+  return mkdtempSync(join(tmpdir(), 'ghqcd-cache-'));
+}
+
+test('--issues without an index exits 1 with E_INDEX', () => {
+  const cache = tempCache();
+  const r = run(['--issues', '--json', 'x'], { env: { GHQCD_CACHE_DIR: cache } });
+  rmSync(cache, { recursive: true, force: true });
+  assert.equal(r.status, 1);
+  assert.equal(jsonLine(r.stderr).error.code, 'E_INDEX');
+});
+
+test('--semantic without a semantic index exits 1 with E_INDEX', () => {
+  const cache = tempCache();
+  const r = run(['--semantic', '--json', 'anything'], { env: { GHQCD_CACHE_DIR: cache } });
+  rmSync(cache, { recursive: true, force: true });
+  assert.equal(r.status, 1);
+  assert.equal(jsonLine(r.stderr).error.code, 'E_INDEX');
+});
+
+test('--semantic needs a query', () => {
+  const r = run(['--semantic', '--json']);
+  assert.equal(r.status, 1);
+  assert.equal(jsonLine(r.stderr).error.code, 'E_VALIDATION');
+});
+
+test('--index takes no query, and --issues does not combine with --semantic', () => {
+  assert.equal(jsonLine(run(['--index', '--json', 'x']).stderr).error.code, 'E_VALIDATION');
+  assert.equal(jsonLine(run(['--issues', '--semantic', '--json', 'x']).stderr).error.code, 'E_VALIDATION');
+});
+
+test('--index stores issues of writable repos, and --issues finds a repo by its issue', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 't' };
+  try {
+    const idx = await runAsync(['--index', '--json'], env);
+    assert.equal(idx.status, 0, idx.stderr);
+    const out = JSON.parse(idx.stdout);
+    assert.equal(out.repos, 3);
+    assert.equal(out.issues, 1);
+    assert.equal(statSync(join(cache, 'index.json')).mode & 0o777, 0o600, 'issue text is private');
+
+    const r = run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } });
+    assert.equal(r.status, 0, r.stderr);
+    const pick = JSON.parse(r.stdout);
+    assert.equal(pick.path, REPOS[0]);
+    assert.equal(pick.issue, 7);
+
+    // A plain repository line still matches in --issues mode, without an issue number.
+    const plain = JSON.parse(run(['--issues', '--json', 'cherry'], { env: { GHQCD_CACHE_DIR: cache } }).stdout);
+    assert.equal(plain.path, REPOS[2]);
+    assert.equal(plain.issue, undefined);
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
 });

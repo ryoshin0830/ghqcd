@@ -26,6 +26,11 @@ OPTIONS
   --cmd <name>       function name emitted by --init (default: ${PKG})
   --query <q>        initial fzf query (same as the positional argument)
   --list             print every candidate instead of picking one
+  --issues           also search issue titles and bodies (needs --index)
+  --semantic         rank by meaning instead of spelling; the query can be
+                     in any language (needs --index --semantic)
+  --index            collect README, description and issues into the cache;
+                     with --semantic, also download the model and embed them
   --json             stdout = 1-line JSON, never opens the fzf UI
   --quiet            stdout = path only (this is what the shell function uses)
   --no-color         disable ANSI colors (also respects NO_COLOR env)
@@ -38,6 +43,21 @@ EXAMPLES
   ${PKG} --list                 every repository path, one per line
   ${PKG} --json alchemy         machine-readable best match
   ${PKG} --quiet alchemy        path only — \`cd "$(${PKG} --quiet alchemy)"\`
+  ${PKG} --index --semantic     build the index once (re-run to refresh)
+  ${PKG} --issues timeout       fzf over repositories and their issues
+  ${PKG} --semantic "把长网址缩短"  the repository whose README or issues mean that
+
+SEARCH INDEX
+  --index reads each README from your clone and, through the GitHub API, the
+  description and the 100 most recently updated issues of every repository
+  you can push to. The token comes from GH_TOKEN / GITHUB_TOKEN or
+  \`gh auth token\`. Everything is stored under ${'$'}XDG_CACHE_HOME/ghqcd
+  (default ~/.cache/ghqcd), readable only by you.
+
+  --semantic additionally installs a pinned WebAssembly runtime there
+  (onnxruntime-web, with npm ci --ignore-scripts) and a pinned, hash-checked
+  model, Qwen3-Embedding-0.6B fp16 (~1.2 GB). The first --index --semantic
+  takes minutes; later runs embed only what changed. Searching is local.
 
 WHY --init
   A child process cannot change its parent shell's directory, so \`npx ${PKG}\`
@@ -62,7 +82,7 @@ OUTPUT
 
 EXIT CODES
   0    success
-  1    validation / generic failure (E_VALIDATION, E_GHQ)
+  1    validation / generic failure (E_VALIDATION, E_GHQ, E_INDEX)
   2    no repository matched (E_NO_MATCH)
   3    non-interactive and the query was ambiguous or absent (E_AMBIGUOUS)
   127  ghq or fzf not installed (E_DEPS)
@@ -97,6 +117,9 @@ try {
       cmd: { type: 'string' },
       query: { type: 'string' },
       list: { type: 'boolean' },
+      issues: { type: 'boolean' },
+      semantic: { type: 'boolean' },
+      index: { type: 'boolean' },
       json: { type: 'boolean' },
       quiet: { type: 'boolean' },
       'no-color': { type: 'boolean' },
@@ -152,6 +175,7 @@ const EXIT = {
   E_FZF: 1,
   E_NO_MATCH: 2,
   E_AMBIGUOUS: 3,
+  E_INDEX: 1,
   E_DEPS: 127,
   E_INTERRUPTED: 130,
 };
@@ -356,6 +380,19 @@ if (values.query != null && positionals.length > 0 && values.query !== positiona
 
 const query = values.query ?? positionals[0] ?? '';
 
+if (values.issues && values.semantic) {
+  die('E_VALIDATION', '--issues and --semantic are mutually exclusive (--semantic already covers issues)');
+}
+if ((values.issues || values.semantic) && values.list) {
+  die('E_VALIDATION', '--list cannot be combined with --issues or --semantic');
+}
+if (values.index && (query || values.issues || values.list)) {
+  die('E_VALIDATION', '--index takes no query and only combines with --semantic and --json');
+}
+if (values.semantic && !values.index && !query) {
+  die('E_VALIDATION', '--semantic needs a query, e.g. ghqcd --semantic "shorten long URLs"');
+}
+
 // ── interactivity ────────────────────────────────────────────────────────────
 
 const stdinTTY = !!process.stdin.isTTY;
@@ -493,21 +530,29 @@ function listRepos() {
 // ── fzf ──────────────────────────────────────────────────────────────────────
 
 const PREVIEW = 'git -C {} log --oneline -10';
+// --issues and --semantic lines are `<path>\t<shown text>`: fzf shows and
+// searches the second field and still prints the whole line back.
+const TAB_LINES = ['--delimiter=\t', '--with-nth=2..'];
+// Fuzzy matching over a whole issue body matches almost anything: the letters
+// of "zzzz" are scattered through any long text. Issue lines match exactly
+// (space-separated terms, each a substring), as fzf's --exact defines it.
+const ISSUE_LINES = [...TAB_LINES, '--exact'];
 
 // Interactive pick. fzf renders on /dev/tty and writes only the selection to
 // stdout, so capturing stdout here does not disturb the UI.
-function fzfPick(candidates) {
+function fzfPick(candidates, extra = [], q = query) {
   const args = [
     '--height=40%',
     '--layout=reverse',
     '--border',
     '--prompt=repo> ',
-    `--preview=${PREVIEW}`,
+    `--preview=${extra.length ? PREVIEW.replace('{}', '{1}') : PREVIEW}`,
+    ...extra,
   ];
-  if (query) {
+  if (q) {
     // With a query, a single surviving candidate is unambiguous — take it
     // rather than making the user press Enter on a one-item list.
-    args.push(`--query=${query}`, '--select-1', '--exit-0');
+    args.push(`--query=${q}`, '--select-1', '--exit-0');
   }
   const r = spawnSync('fzf', args, {
     input: candidates.join('\n') + '\n',
@@ -529,8 +574,8 @@ function fzfPick(candidates) {
 
 // Non-interactive scoring pass. `fzf --filter` prints ranked matches and never
 // opens a UI, so the same fuzzy semantics apply with or without a terminal.
-function fzfFilter(candidates, q) {
-  const r = spawnSync('fzf', ['--filter', q], {
+function fzfFilter(candidates, q, extra = []) {
+  const r = spawnSync('fzf', ['--filter', q, ...extra], {
     input: candidates.join('\n') + '\n',
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -622,12 +667,83 @@ function copyToClipboard(text) {
   return true;
 }
 
+// ── search index (--index, --issues, --semantic) ─────────────────────────────
+
+// Loaded on demand so the plain picker never pays for it.
+const searchIndex = () => import('../lib/search-index.mjs');
+const flat = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+const pathOf = (line) => line.split('\t')[0];
+
+async function runIndex(repos, slugOf) {
+  const si = await searchIndex();
+  // Progress goes to stderr even under --quiet: the shell function adds that
+  // flag to every call, and a silent multi-minute run looks hung.
+  const say = (s) => stderr.write(`${dim(s)}\n`);
+  const t0 = Date.now();
+  say(`indexing ${repos.length} repositories…`);
+  const res = {};
+  try {
+    const { index, stats } = await si.buildTextIndex(repos.map((p) => ({ path: p, slug: slugOf(p) })), { log: say });
+    Object.assign(res, stats);
+    say(`  ${stats.readmes} READMEs, ${stats.github} repositories on GitHub, ${stats.issues} issues` +
+      (stats.skipped ? `, ${stats.skipped} skipped (no token for the host, or not on GitHub)` : '') +
+      (stats.errors ? `, ${stats.errors} API errors` : ''));
+    if (!stats.github && stats.skipped) say('  for issues: set GH_TOKEN, or log in with `gh auth login`');
+    if (values.semantic) Object.assign(res, await si.buildVectors(index, { log: say }));
+  } catch (err) {
+    die(err.code ?? 'E_INDEX', err.message);
+  }
+  res.seconds = Math.round((Date.now() - t0) / 1000);
+  res.cache = si.cacheDir();
+  if (isJson) process.stdout.write(JSON.stringify({ schemaVersion: SCHEMA_VERSION, ...res }) + '\n');
+  else say(`done in ${res.seconds}s → ${res.cache}`);
+}
+
+// --issues: the repositories plus one line per indexed issue.
+async function pickWithIssues(repos) {
+  const si = await searchIndex();
+  const index = si.readTextIndex();
+  if (!index) die('E_INDEX', 'no index yet. Run `ghqcd --index` first.');
+  const present = new Set(repos);
+  const lines = repos.map((p) => `${p}\t${p}`)
+    .concat(si.issueLines(index).filter((l) => present.has(pathOf(l))));
+  const issueOf = (line) => Number(line.split('\t')[1]?.match(/^\S+ {2}#(\d+) /)?.[1]) || undefined;
+  if (isNonInteractive) {
+    const hits = fzfFilter(lines, query, ISSUE_LINES);
+    if (hits.length === 0) die('E_NO_MATCH', `no repository or issue matched '${query}'`);
+    return { selected: pathOf(hits[0]), matches: new Set(hits.map(pathOf)).size, extra: { issue: issueOf(hits[0]) } };
+  }
+  const line = fzfPick(lines, ISSUE_LINES);
+  return { selected: pathOf(line), matches: 1, extra: { issue: issueOf(line) } };
+}
+
+// --semantic: repositories ranked by meaning; fzf keeps that order.
+async function pickSemantic(repos, slugOf) {
+  const si = await searchIndex();
+  const present = new Set(repos);
+  let ranked;
+  try {
+    ranked = (await si.semanticRank(query)).filter((r) => present.has(r.path));
+  } catch (err) {
+    die(err.code ?? 'E_INDEX', err.message);
+  }
+  if (ranked.length === 0) die('E_NO_MATCH', 'the semantic index has none of these repositories. Run `ghqcd --index --semantic`.');
+  if (isNonInteractive) {
+    return { selected: ranked[0].path, matches: ranked.length, extra: { score: +ranked[0].score.toFixed(4) } };
+  }
+  const lines = ranked.map((r) => `${r.path}\t${r.score.toFixed(2)}  ${slugOf(r.path)}` +
+    `${r.kind === 'issue' ? `  #${r.number}` : ''}  ${flat(r.preview)}`);
+  const line = fzfPick(lines, [...TAB_LINES, '--no-sort'], '');
+  const hit = ranked.find((r) => r.path === pathOf(line));
+  return { selected: hit.path, matches: 1, extra: { score: +hit.score.toFixed(4) } };
+}
+
 // ── main flow ────────────────────────────────────────────────────────────────
 
 async function main() {
   await ensureTool('git');
   await ensureTool('ghq');
-  await ensureTool('fzf');
+  if (!values.index) await ensureTool('fzf');
 
   const roots = ghqRoots();
   const root = roots[roots.length - 1] ?? ''; // the primary, for the `root` field
@@ -640,6 +756,8 @@ async function main() {
   if (repos.length === 0) {
     die('E_NO_MATCH', 'ghq has no repositories. Clone one with `ghq get <url>` first.');
   }
+
+  if (values.index) return runIndex(repos, slugOf);
 
   // ── --list ────────────────────────────────────────────────────────────────
   if (values.list) {
@@ -661,12 +779,17 @@ async function main() {
   // ── pick one ──────────────────────────────────────────────────────────────
   let selected;
   let matches;
-  if (isNonInteractive) {
-    if (!query) {
-      die('E_AMBIGUOUS',
-        'no terminal for the fzf UI. Pass a query to pick non-interactively, ' +
-        'or use --list to see every candidate.');
-    }
+  let extra = {};
+  if (isNonInteractive && !query) {
+    die('E_AMBIGUOUS',
+      'no terminal for the fzf UI. Pass a query to pick non-interactively, ' +
+      'or use --list to see every candidate.');
+  }
+  if (values.semantic) {
+    ({ selected, matches, extra } = await pickSemantic(repos, slugOf));
+  } else if (values.issues) {
+    ({ selected, matches, extra } = await pickWithIssues(repos));
+  } else if (isNonInteractive) {
     const hits = fzfFilter(repos, query);
     if (hits.length === 0) die('E_NO_MATCH', `no repository matched '${query}'`);
     // fzf --filter is score-ordered, so the head is the best match. `matches`
@@ -686,6 +809,7 @@ async function main() {
       slug: slugOf(selected),
       root,
       matches,
+      ...extra,
     }) + '\n');
     return;
   }
@@ -713,7 +837,10 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().then(() => {
+  // The WebAssembly runtime keeps worker threads alive after the last query.
+  if (values.semantic) process.exit(0);
+}).catch((err) => {
   disengageRawMode();
   restoreCursor();
   if (isJson) {
