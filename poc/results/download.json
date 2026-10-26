@@ -1,0 +1,18 @@
+{
+  "e5-small": {
+    "seconds": 20.5,
+    "bytes": 492795290
+  },
+  "qwen3-0.6b": {
+    "seconds": 50.5,
+    "bytes": 1207470234
+  },
+  "gemma2": {
+    "seconds": 55.1,
+    "bytes": 1525787092
+  },
+  "bge-m3": {
+    "seconds": 82.4,
+    "bytes": 2293315801
+  }
+}

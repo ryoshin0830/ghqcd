@@ -1,0 +1,252 @@
+[
+  {
+    "id": "latex-jp-en-references-template",
+    "text": "日本語と英語の文献が混在する参考文献リストを扱うためのLaTeXテンプレートです。XeLaTeX、biblatex、biberの組み合わせを用い、参考文献を日本語文献と英語文献に自動で分けて出力し、それぞれに適した著者表記（日本語は「山田 一郎」、英語は「Smith, John」の形式）で整形します。言語の判定はlangidフィールドで行い、Zoteroで管理する場合はLanguageやExtraフィールドにlangidを記入します。引用スタイルや表示形式は\\DeclareFieldFormatや\\DeclareNameFormatを編集してカスタマイズできます。BibTeXで起こりがちな日本語の文字化けを軽減できるほか、VSCodeとLaTeX Workshopの連携により、保存時にXeLaTeX→biber→XeLaTeXの順で自動ビルドされます。Zotero＋Better BibTeXによる.bibファイルの自動エクスポートにも対応し、Overleafで使うための設定手順も用意されています。ライセンスはMITです。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:fff3146cb18a199e9d3d103a0527a254badd4fda",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "thesis_typst",
+    "text": "thesis_typstリポジトリには説明文もREADMEもなく、内容についての説明はありません。",
+    "source_kind": "derived_ja_summary",
+    "based_on": null,
+    "used_fields": []
+  },
+  {
+    "id": "short-url",
+    "text": "link.ryosh.inという名前のURL短縮サービスで、リポジトリの説明には「ショートURL・ファイル転送」とあります。長いURLを短いリンクに変換し、短縮URLにアクセスすると元のURLへリダイレクトします。訪問回数などのアクセス統計を記録し、レスポンシブなモダンUIを備えています。トップページのフォームにURLを入力して「短縮する」ボタンを押すと短いURLが生成されます。また外部アプリケーション向けにREST APIを提供しており、POST /api/shortenに短縮したいURLをJSONで送ると短縮URLが返されます。Next.js 15、React 19、TailwindCSS 4で構築され、データベースにはVercel PostgreSQL（Neon）を使い、Vercelにデプロイされます。認証は環境変数DEFAULT_PASSKEYに設定したパスキーだけを使う方式に簡素化されています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:e636dd0a2c97fa9b05eddcd543f5f1acf7e7a941",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "picking",
+    "text": "引数で渡した名前や番号などのアイテムをランダムに扱う、依存パッケージのない小さなCLIです。デフォルトではアイテムをシャッフルして番号付きで並べる順番決めを行い、--pickでN個を抽選、--sizeで1グループK個ずつに分割、--teamsでNチームにできるだけ均等に分けることができます。シャッフルには偏りのないFisher–Yatesを使い、--seedを指定するとmulberry32による決定論的な結果になるため、同じシードで同じ結果を再現できます。出力は通常の表示のほか、--plainでスペース区切り、--jsonでJSON形式を選べます。位置引数がなく標準入力がパイプされている場合は、1行を1アイテムとして読み込みます。npx pickingでインストールせずに実行でき、npm install -g pickingでグローバルインストールも可能です。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:bce702a367cbf1a57c84dfa8ce5a034cc4fc58bb",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "ghnew",
+    "text": "GitHub（またはGHE）にリポジトリを作成し、ghq getでクローンして、cdコマンドを示すところまでを一度に行うCLIです。gh auth statusから認証済みのアカウントを読み取り、矢印キーで選ぶか非対話的に指定すると、gh repo createでリポジトリを作成し（既定は非公開でREADME付き）、ホストごとのgitProtocol設定に応じてSSHかHTTPSでghq getします。最後にcd先のパスを枠で表示し、cキーでクリップボードにコピーできます。--init zshなどで出力されるシェル関数を設定に追加すると、作成後にシェル自体がそのディレクトリへ移動します。--remote HOST/LOGINや--public、--descriptionなどのフラグを使えば完全に非対話で実行でき、--jsonや--quietによりスクリプトやAIエージェントからも扱えます。ghやghqがなければbrew installを提案し、Claude Code向けのスキルも同梱されています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:29e6fd3c1cad49fb178168c7710acbee9eea66ba",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "syncskills",
+    "text": "複数のマシン間でAIエージェントのスキルとMCPサーバーの設定を同じ状態に保つための同期ツールで、READMEではonesetという名前で紹介されています。Claude Code、Codex、Gemini、OpenCode、Hermes、Piのスキルとサーバーを1台のマシン内で統一するcc-switchを土台に、自分が所有するGitHubリポジトリを介してマシン同士を同期します。前回双方が合意した状態を記憶する3方向同期を行い、片方だけが変更した項目はpushまたはpullし、双方が変更した衝突ではどちらかを捨てずに扱います。スキルの重ならない編集はgit merge-fileで自動統合し、本当に重なった部分だけをclaudeやcodexに両方の変更を残す形で統合させます。MCPのenv値などの認証情報はgitに入れず、1Passwordのセキュアノートに保存します。各マシンでnpx oneset initを一度実行し、以降はnpx onesetで対話的に確認・適用します。status、sync、diffなどのサブコマンドや--jsonによる機械可読な出力も備えています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:d2429562550e60b944bafa830837232e61aecc4f",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "google-mcp",
+    "text": "Google Calendar向けのリモートMCPサーバーで、Next.jsで実装され、MCPのStreamable HTTPトランスポートを使ってVercelにデプロイできます。カレンダーの一覧取得や予定の取得・作成・更新・削除に加えて、Gmailのプロフィール・ラベル・メッセージの取得とメッセージ送信、ラベル変更、タスクリストやタスクの取得・作成・更新・削除、Driveのファイル一覧と取得、フォルダ作成、名前変更、削除といったツールを提供します。秘密情報は.env.localに置き、MCP_PATH_SECRETやGoogleのクライアントID、リフレッシュトークンなどを設定します。npm run devでローカル起動でき、エンドポイントは/api/mcp/<MCP_PATH_SECRET>へのPOSTです。npm run test:smokeで簡単なスモークテストも実行できます。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:af3542b7a111b444abf143bbf9833a73e484309b",
+    "used_fields": [
+      "readme"
+    ]
+  },
+  {
+    "id": "ghqcd",
+    "text": "ghqで管理しているリポジトリをfzfで選び、そのディレクトリへcdするためのCLIです。ghqcdを実行するとリポジトリの一覧がfzfで表示され、プレビュー欄で最近のコミットを確認しながら選択できます。クエリを渡すと候補を絞り込み、一意に一致すればキー操作なしで移動します。子プロセスは親シェルのカレントディレクトリを変えられないため、--init zsh、bash、fishで出力されるシェル関数を設定ファイルに読み込んで使います。npm install -g ghqcdでインストールでき、npx経由でも利用できます。--cmdで関数名を変えられ、--listで全候補を表示します。--jsonはUIを開かずに1行のJSONを返すので、スクリプトやAIエージェントからも安全に使え、エラーもJSONで出力されて終了コードで区別できます。git、ghq、fzfとNode 20.12以上が必要です。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "commit:5f7f77a0dd311b65b0ca57f4e09a0f3a474e83ee",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "grantloom",
+    "text": "CLIやAIエージェント向けに、GoogleのOAuth同意と認証情報の保存を、秘密情報を表示せずに扱うツールです。自分で用意したGoogle OAuthクライアントを使い、ブラウザでアクセスを承認すると、検証済みの認証情報を1Password、非公開のJSONファイル、環境変数ファイルのいずれかに保存します。Gmail、Drive、Sheets、Calendarなどのスコープを指定して同意を取り、実際のアカウントと権限を確認します。仕事用と個人用などを名前付きのプロファイルで分けて管理でき、既存プロファイルのアクセストークンを更新したり、execでスクリプトの環境に認証情報を注入したりできます。AIエージェントはCLI、7つのMCPツール、同梱のSkillを通じて手順を進められます。Grantloom自体はメールを読むといったAPI操作は行わず、トークンを表示するコマンドもありません。grantloom authで認証を始め、Node.js 22以上が必要です。Googleとは無関係の独立したプロジェクトです。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:f3c8e62ca46a7f331e1169bd0a3c23f9de8f4b53",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "markdown_slide",
+    "text": "VS Code、Marp、Draw.ioを組み合わせて、プログラマーにとって扱いやすいスライド作成環境を作るプロジェクトです。スライドはMarpを使ってMarkdownで書き、図はDraw.ioで作成・編集します。Gitでバージョン管理ができ、作業はVS Codeだけで完結し、PDF、HTML、PPTXへのエクスポートにも対応します。拡張機能のMarp for VS CodeとDraw.io Integrationを入れてリポジトリをクローンし、.mdファイルの先頭にmarp: trueを含むYAMLフロントマターを書いてMarkdownで内容を記述すると、プレビューでスライドを確認できます。図は.drawio.svg拡張子のファイルとして作ると保存時にSVGとして出力され、Markdownの画像記法でスライドに挿入できます。ライセンスはMITです。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:9e8670fb735d4063d0f14ab5a7f4ba6f63cee4cc",
+    "used_fields": [
+      "readme"
+    ]
+  },
+  {
+    "id": "outlook-mcp",
+    "text": "Microsoft Graph APIを使ってOutlookのメールにアクセスするためのMCP（Model Context Protocol）サーバーです。メールの一覧取得、詳細取得、検索、既読と未読の切り替え、削除ができ、それぞれset_access_token、list_emails、get_email、search_emails、mark_as_read、delete_emailというツールとして提供されます。一覧取得では取得件数やページネーション、ODataフィルタ、並び順を指定できます。npm installとnpm run buildの後、npm startでstdioトランスポートとしてローカルで使うか、node dist/http-server.jsでHTTP/SSEトランスポートのサーバーをlocalhost:3000で起動してリモートMCPとして使います。Microsoft Graph APIのアクセストークンが必要で、Microsoft Graph Explorerから取得できます。Claude Desktopでの設定例も用意されています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:1020b61460ddb276acb133db4ec19fab4817e719",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "page-checker",
+    "text": "スキャンした教科書のPDFに抜けているページがないかを目で確認するためのウェブツールです。ページ番号が書かれている領域を選択すると、すべてのページからその部分を切り出してグリッド状に並べて表示するため、ページの欠落を一覧で確かめられます。READMEはcreate-next-appで作成されたNext.jsプロジェクトの標準的な内容で、npm run devなどで開発サーバーを起動し、ブラウザでhttp://localhost:3000を開いて確認する手順が記載されています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:e215bc4ccf138bbc38ad58ad57e92135484b3c0f",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "ryoshin0830",
+    "text": "GitHubのプロフィールに表示されるREADMEを置くための特別なリポジトリで、説明には「Github README」とあります。内容は「Hi there」という挨拶と、現在学習中であることを示す一行だけで、それ以外の自己紹介の項目はコメントアウトされたテンプレートのままになっています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:3eb999b6a98d59a98edc58f821d807226edc0824",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "kane",
+    "text": "誰でも簡単に使えることを目指した、モダンな個人向けの家計管理アプリです。API中心の設計を核としており、上級ユーザー向けにはMCPやSkillsにも対応して、取引データの取り込み、分類、分析の自動化ができるようにすることを掲げています。説明文とREADMEにはこの概要だけが書かれており、具体的な使い方や機能の詳細は記載されていません。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:997e583fa4f6972ac40c2f34bb4176e74c46ec06",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "gwqpull",
+    "text": "ghqでクローンし、gwqのworktreeを追加して、そこへcdするまでを1つのコマンドで行うCLIです。cli/cliのような短い指定、ホスト付きの指定、URL、ブランチ付きのURL、プルリクエストのURLを受け付け、ブラウザのURLをそのまま貼り付けても使えます。リポジトリがなければghq get、あればgit fetch --pruneを行い、ブランチを引数、URL、PRのhead、またはfzfでの選択から決めます。既存のworktreeがあれば再利用し、なければgwq addで作成して、サブモジュールの初期化やGitで無視されている設定ファイルのコピーも行います。フォークからのPRや、マージ済みでブランチが削除されたPRはpr-Nブランチとして扱います。既存の作業を壊さないよう配慮されており、何度実行しても安全です。--init zshなどでシェル関数を設定すると、シェルが作成先に移動します。git、ghq、gwq、fzf、PRのURLにはghが必要で、Node 20.12以上で動作します。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:27fe65fbced71b1956492d99cddbbe054d8aa250",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "expense-ledger",
+    "text": "「どこで何をいくら何で買ったのか」を記録するための多通貨対応の支出台帳です。スキーマはGitHubで管理し、データはGoogle Sheetsに保存し、処理はPythonスクリプトで行うという役割分担になっています。SCHEMA.mdをデータモデルの唯一の基準とし、AIは操作のたびにそれを読み込み、データ処理はすべてコードで行います。取引の記録はrecord.py、検索と集計はquery.py、月次やプロジェクト別のレポートはreport.py、為替レートの取得はexchange_rate.py、レシート画像の読み取りはGPT-4oを使うocr_receipt.pyが担当します。Google Sheetsには取引記録、月次サマリー、ダッシュボード、検索ビュー、設定のシートがあります。WeChat PayやAlipayのExcel出力を取り込む際は日付・金額・通貨の組で重複を判定し、返金された取引や収入は記録しないといった運用ルールも定められています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:367f07bb4df774f8743ccd4d68028d14db2854e1",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "mp3-album-info-renamer",
+    "text": "ディレクトリ内のMP3ファイルのタイトル情報を、ファイル名と同じ内容に設定するシェルスクリプトです。実行したディレクトリとそのサブディレクトリを再帰的に探し、見つかったすべてのMP3ファイルについて、拡張子を除いたファイル名をタイトルとして書き込みます。動作にはeyeD3コマンドラインツールが必要で、pip install eyeD3で導入できます。使い方は、set_mp3_titles.shにchmod +xで実行権限を付けてから実行するだけです。元のタイトル情報は上書きされるため、必要に応じてバックアップを取ることが勧められています。ライセンスはMITです。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:b20cb6d3454809f7ec71384bf2207e046ddf934a",
+    "used_fields": [
+      "readme"
+    ]
+  },
+  {
+    "id": "ccverbs",
+    "text": "Claude Codeが処理中に表示するスピナーの動詞を、好みのテーマや学習用の内容に置き換えるツールです。Claude Codeは「Cogitating…」のような186個の動詞をランダムに表示しますが、ccverbsはこれをコミュニティで管理されるテーマ別の動詞セットに差し替えます。たとえばsisyphusを選ぶと岩を押し上げる様子が表示され、kubectl-commandsのような学習用のセットではスピナーがコマンドとその意味を覚える単語カードになります。npx ccverbsで検索できるピッカーが開き、セットを選んで差分を確認してから適用します。list、show、search、set、random、current、resetなどのコマンドがあり、既定の動詞を置き換えるreplaceと追加するappendのモードや、書き込み先のスコープを設定できます。settings.jsonではspinnerVerbsキーだけを変更し、事前にバックアップも作ります。新しいセットはウェブのビルダーか、JSONファイルを追加するプルリクエストで投稿できます。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:204c395a4dcda7ffdcbee62087e2d540345cf1a3",
+    "used_fields": [
+      "readme"
+    ]
+  },
+  {
+    "id": "gwqadd",
+    "text": "今いるリポジトリで新しいブランチとそのgwq worktreeを作成し、そこへcdするCLIです。git checkout -bをした後でworktreeにすればよかったと気づき、gwq add -bでやり直して場所を探すといった手間を1つのコマンドにまとめます。分岐元はgit checkout -bと同じく現在のHEADで、使ったベースを常に表示し、それがデフォルトブランチでない場合は警告します。--from mainのように分岐元を指定することもできます。ブランチ名を省略すると3語のランダムな名前を提案し、作業内容を任意の言語で説明すれば、AIがそのリポジトリの既存ブランチの接頭辞や命名の傾向に合わせた名前を提案します。AIにはPATH上のclaude、codex、opencode、geminiのいずれかが使われ、APIキーは不要です。--init zshなどでシェル関数を設定すると、シェルが作成先に移動します。gitとgwq、Node 20.12以上が必要です。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:f0e7319355751b905907659db6f3ac89904ead0c",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "isucon-shin",
+    "text": "日本CTO協会の合同ISUCON研修2026に参加した際の作業リポジトリです。題材はSNS風の画像投稿アプリ「Iscogram」を扱うprivate-isuで、サーバ上の設定ファイルやアプリのコード、チューニング作業をバージョン管理し、作業ログを残すために使われています。READMEには参加チームの情報やAWSのワークショップ環境への接続手順、認証情報を.env.localにまとめる運用、nginx、アプリ、MySQL、memcachedからなるサーバ構成、スコアの計算方法が記載されています。Rust実装に切り替えたうえで、索引の追加、画像のファイル化とnginxからの直接配信、N+1の解消、メモリキャッシュの導入などの改善を重ね、スコアをRuby版の566から自己ベストの464,134まで伸ばした経緯もまとめられています。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:c5bb046c95ca2383a6ba102f057e2efb33aeb4a4",
+    "used_fields": [
+      "readme"
+    ]
+  },
+  {
+    "id": "gmo-quiz",
+    "text": "GMOグループの研修で使うクイズアプリのリポジトリです。READMEはcreate-next-appで作成されたNext.jsプロジェクトの標準的な内容だけで、npm run devなどで開発サーバーを起動し、ブラウザでhttp://localhost:3000を開くとページを確認できること、app/page.tsxを編集すると自動で反映されることが書かれています。クイズの内容や機能についての具体的な説明はありません。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:e215bc4ccf138bbc38ad58ad57e92135484b3c0f",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "fzf-ghq-remote",
+    "text": "ローカルのghqクローンとgit worktree、さらにまだクローンしていないGitHubやGHES上のリモートリポジトリを、まとめてあいまい検索できるzshウィジェットです。リポジトリ名の検索とコード内容の検索をCtrl-Tで切り替えられます。起動キーは説明文ではCtrl-O、READMEではCtrl-]とされています。ローカルのリポジトリを選ぶとcdし、リモートのものはghq getしてからcdします。コード検索の結果を選ぶと該当ファイルを$EDITORで開きます。Tabでリモート検索のオンとオフを切り替え、入力中はAPIを呼ばずに読み込み済みの候補だけを絞り込むため、GitHubの検索APIの回数制限に配慮しています。gitリポジトリの中で起動すると、そのリポジトリをgh browseでブラウザに開く項目も表示されます。zsh、fzf 0.50以上、gh、ghqが必要で、gwqとjqがあればworktreeも一覧に含まれます。Oh My Zshのプラグインとしても使えます。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:b2445b761805da6aaa31b68a0f5186f6d7521439",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "gwqcd",
+    "text": "git worktreeをfzfで選んでcdするためのCLIです。gwqで作ったworktreeだけでなく、claude -w、herdr、Codex Appが作成したworktreeも探して一覧に表示し、ブランチ名やパス、コミットをプレビューしながら選べます。--sourceで対象をgwq、claude、herdr、codexなどに絞ることができ、--localを使うと現在のリポジトリのworktreeを場所を問わずすべて表示します。gwq list -gはworktreeが多いと遅くなりますが、gwqcdは設定されたルートを直接たどるため高速に動作します。子プロセスは親シェルのディレクトリを変えられないため、--init zshなどで出力されるシェル関数を読み込んで使います。npxで実行した場合はcdコマンドを枠で表示し、cキーでコピーできます。git、gwq、fzfとNode 20.12以上が必要で、ghqは任意です。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:1a92b2c3cb6a6d635a05ee904e94b060faaacaa8",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  },
+  {
+    "id": "karabiner-lang",
+    "text": "USキーボード向けのKarabiner-Elementsの設定です。左のCmdキーで英語入力、右のCmdキーで日本語入力、右のOptionキーで中国語のピンイン入力に切り替えられるようにするものです。READMEはなく、説明文に書かれている以上の詳しい内容や使い方は記載されていません。",
+    "source_kind": "derived_ja_summary",
+    "based_on": null,
+    "used_fields": [
+      "description"
+    ]
+  },
+  {
+    "id": "portfolio",
+    "text": "portfolioリポジトリには説明文がなく、READMEもcreate-next-appで作成されたNext.jsプロジェクトの標準的な内容だけです。npm run devなどで開発サーバーを起動し、ブラウザでhttp://localhost:3000を開くと結果を確認できること、app/page.tsxを編集するとページが自動で更新されること、Vercelへのデプロイ方法の案内が書かれていますが、このリポジトリ固有の内容についての説明はありません。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:e215bc4ccf138bbc38ad58ad57e92135484b3c0f",
+    "used_fields": [
+      "readme"
+    ]
+  },
+  {
+    "id": "japanese-tts-comparison",
+    "text": "日本語の音声合成（TTS）11モデルに同じ原稿を読ませて比較した結果を公開するリポジトリです。OpenRouter経由で、難しい地名や漢字、日付、金額を含む262文字の日本語原稿を各モデルに渡し、読みの正確さや自然さを聞き比べられるようにしています。モデル名付きと名前を伏せた版の比較動画、モデル別の個別動画と原音、1回分の生成にかかった実費（USDと参考JPY）、実測の処理時間を掲載しています。対象にはGemini 3.8 Flash TTS、Eleven v4、Fish Audio Drama 3、Qwen-Audio 3.0 TTS Plusなどが含まれ、作者は手早く作るならGemini 3.8 Flash TTS、声のよさを重視するならEleven v4という感想を述べています。読みの確認表や評価票も用意され、Pythonとffmpegがあれば動画をAPIなしで作り直す手順も記載されています。検証日は2026年10月22日です。",
+    "source_kind": "derived_ja_summary",
+    "based_on": "blob:cc8f01bc25344dd56aaa87d00bd37b5f99fcd94c",
+    "used_fields": [
+      "description",
+      "readme"
+    ]
+  }
+]
