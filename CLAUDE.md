@@ -225,8 +225,33 @@ bytes leaking into files.
   `MODEL.key`, which keys the vector files, so old vectors are never mixed in.
 - Repository score is max(best README chunk, best issue chunk − 0.1). Without
   the penalty, a repository with many issues wins queries it should not.
+- One chunk per issue (title + start of body). All chunks made 12,765 chunks
+  from 1,571 real issues, a 3.5-hour first pass; the experiment lost 3 of 111
+  issue questions to the cut.
+- `buildVectors` yields to the event loop before every chunk. ORT's `run()`
+  resolves without one, so SIGTERM / SIGHUP handlers never ran and a killed
+  `--index` kept embedding for hours.
+- Queries load ORT with one thread. On Node 20, starting the thread pool
+  sometimes spun forever inside session creation (1 run in 15; 0 in 45 with
+  one thread). Indexing keeps 8 threads for speed.
+- A refresh is incremental twice over. Each source text (a README, an issue)
+  is hashed before chunking; an unchanged text with all its vectors present
+  reuses the last chunk list, because tokenizing everything cost 20 s for 1,800
+  chunks. Chunks are then keyed by their own hash. The model loads only when
+  some text changed, so a no-change refresh is the GitHub fetch alone (8 s).
+  Bump `CHUNKING` when `chunk()` or its input changes.
+- `--index` takes `index.lock` (pid inside; a dead pid's lock is taken over).
+  Two runs appending to one vector file corrupted it.
+- `--issues` / `--semantic` print a hint on stderr when the index is over 7
+  days old. They never refresh it themselves: that reads private issues.
+- `--index` keeps the previous description and issues of a repository when
+  there is no token or the API call fails: an expired token must not silently
+  empty the index. NOT_FOUND and gist hosts count as skipped, not as errors.
 - `--issues` matches exactly (`fzf --exact`): fuzzy matching over issue bodies
-  matched nonsense queries.
+  matched nonsense queries. `--no-hscroll` keeps the slug and title visible
+  when the hit is deep in the body.
+- Tests put a failing `gh` shim on PATH, so the developer's own login never
+  reaches a test or the network.
 - Progress for `--index` goes to stderr even under `--quiet`, because the shell
   function adds `--quiet` to every call.
 

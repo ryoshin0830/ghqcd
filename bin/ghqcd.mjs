@@ -536,7 +536,8 @@ const TAB_LINES = ['--delimiter=\t', '--with-nth=2..'];
 // Fuzzy matching over a whole issue body matches almost anything: the letters
 // of "zzzz" are scattered through any long text. Issue lines match exactly
 // (space-separated terms, each a substring), as fzf's --exact defines it.
-const ISSUE_LINES = [...TAB_LINES, '--exact'];
+// --no-hscroll keeps the slug and title in view when the hit is deep in the body.
+const ISSUE_LINES = [...TAB_LINES, '--exact', '--no-hscroll'];
 
 // Interactive pick. fzf renders on /dev/tty and writes only the selection to
 // stdout, so capturing stdout here does not disturb the UI.
@@ -683,13 +684,17 @@ async function runIndex(repos, slugOf) {
   say(`indexing ${repos.length} repositories…`);
   const res = {};
   try {
+    si.lockIndex();
     const { index, stats } = await si.buildTextIndex(repos.map((p) => ({ path: p, slug: slugOf(p) })), { log: say });
     Object.assign(res, stats);
     say(`  ${stats.readmes} READMEs, ${stats.github} repositories on GitHub, ${stats.issues} issues` +
-      (stats.skipped ? `, ${stats.skipped} skipped (no token for the host, or not on GitHub)` : '') +
-      (stats.errors ? `, ${stats.errors} API errors` : ''));
+      (stats.skipped ? `, ${stats.skipped} skipped (no token for the host, not on GitHub, or no access)` : '') +
+      (stats.errors ? `, ${stats.errors} API errors (first: ${stats.firstError})` : ''));
     if (!stats.github && stats.skipped) say('  for issues: set GH_TOKEN, or log in with `gh auth login`');
-    if (values.semantic) Object.assign(res, await si.buildVectors(index, { log: say }));
+    if (values.semantic) {
+      Object.assign(res, await si.buildVectors(index, { log: say }));
+      say(`  ${res.changed} texts changed since the last run, ${res.embedded} chunks embedded`);
+    }
   } catch (err) {
     die(err.code ?? 'E_INDEX', err.message);
   }
@@ -699,11 +704,19 @@ async function runIndex(repos, slugOf) {
   else say(`done in ${res.seconds}s → ${res.cache}`);
 }
 
+// Nothing refreshes the index behind the user's back (it reads private issues),
+// so an old one is pointed out instead.
+const STALE_DAYS = 7;
+function staleHint(days, cmd) {
+  if (days > STALE_DAYS) stderr.write(`${dim(`ghqcd: the index is ${Math.floor(days)} days old; \`${cmd}\` refreshes it`)}\n`);
+}
+
 // --issues: the repositories plus one line per indexed issue.
 async function pickWithIssues(repos) {
   const si = await searchIndex();
   const index = si.readTextIndex();
   if (!index) die('E_INDEX', 'no index yet. Run `ghqcd --index` first.');
+  staleHint(si.indexAgeDays(false), 'ghqcd --index');
   const present = new Set(repos);
   const lines = repos.map((p) => `${p}\t${p}`)
     .concat(si.issueLines(index).filter((l) => present.has(pathOf(l))));
@@ -728,6 +741,7 @@ async function pickSemantic(repos, slugOf) {
     die(err.code ?? 'E_INDEX', err.message);
   }
   if (ranked.length === 0) die('E_NO_MATCH', 'the semantic index has none of these repositories. Run `ghqcd --index --semantic`.');
+  staleHint(si.indexAgeDays(true), 'ghqcd --index --semantic');
   if (isNonInteractive) {
     return { selected: ranked[0].path, matches: ranked.length, extra: { score: +ranked[0].score.toFixed(4) } };
   }

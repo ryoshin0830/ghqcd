@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtempSync, writeFileSync, chmodSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync, chmodSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -52,6 +52,8 @@ fi
 echo "fzf: interactive UI invoked in a test" >&2
 exit 2
 `);
+  // The developer's own `gh auth token` must not reach a test, nor the network.
+  write('gh', '#!/bin/sh\nexit 1\n');
   return dir;
 }
 
@@ -355,6 +357,7 @@ async function fakeGitHub() {
     banana: [],
   };
   const server = createServer((req, res) => {
+    if (server.fail) { res.statusCode = 401; res.end(); return; }
     let body = '';
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
@@ -369,6 +372,25 @@ async function fakeGitHub() {
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { server, url: `http://127.0.0.1:${server.address().port}/graphql` };
 }
+
+test('--index refuses to run beside another --index, and takes over a dead one\'s lock', async () => {
+  const cache = tempCache();
+  const env = { GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' };
+  try {
+    writeFileSync(join(cache, 'index.lock'), String(process.pid)); // this test runner: alive
+    const busy = await runAsync(['--index', '--json'], env);
+    assert.equal(busy.status, 1);
+    assert.equal(jsonLine(busy.stderr).error.code, 'E_INDEX');
+    assert.match(jsonLine(busy.stderr).error.message, /is running/);
+
+    writeFileSync(join(cache, 'index.lock'), '2147483646'); // no such process
+    const ok = await runAsync(['--index', '--json'], env);
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.equal(existsSync(join(cache, 'index.lock')), false, 'lock released on exit');
+  } finally {
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
 
 function tempCache() {
   return mkdtempSync(join(tmpdir(), 'ghqcd-cache-'));
@@ -423,6 +445,23 @@ test('--index stores issues of writable repos, and --issues finds a repo by its 
     const plain = JSON.parse(run(['--issues', '--json', 'cherry'], { env: { GHQCD_CACHE_DIR: cache } }).stdout);
     assert.equal(plain.path, REPOS[2]);
     assert.equal(plain.issue, undefined);
+
+    // A rejected token keeps the issues the last run fetched.
+    gh.server.fail = true;
+    const bad = await runAsync(['--index', '--json'], env);
+    assert.equal(JSON.parse(bad.stdout).errors, 3);
+    assert.match(bad.stderr, /HTTP 401/);
+    assert.equal(JSON.parse(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
+
+    // An index older than a week is pointed out, not silently used.
+    const old = new Date(Date.now() - 10 * 864e5);
+    utimesSync(join(cache, 'index.json'), old, old);
+    assert.match(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stderr, /10 days old/);
+
+    // So does having no token at all.
+    const none = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' });
+    assert.equal(JSON.parse(none.stdout).skipped, 3);
+    assert.equal(JSON.parse(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
   } finally {
     gh.server.close();
     rmSync(cache, { recursive: true, force: true });

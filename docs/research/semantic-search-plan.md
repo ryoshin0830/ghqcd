@@ -82,7 +82,7 @@ Node 側のトークン化は Python と 260 件で完全一致した（末尾�
 - モデル: Qwen3-Embedding-0.6B、onnx-community の fp16 ONNX（revision `c25a394`、SHA-256 をソースに固定）
 - 実行基盤: onnxruntime-web 1.30.0（WASM）+ @huggingface/tokenizers 0.2.0
 - 集め方: max(README の最良 chunk, issue の最良 chunk − 0.1)
-- issue は全 chunk を入れる（初回は遅いが、再開でき、2 回目以降は差分だけ）
+- issue は 1 件 1 chunk（タイトルと本文の先頭）。当初は全 chunk だったが、実データで 3.5 時間かかったので変えた（下の「実データでの確認」）
 
 ## タスクリスト
 
@@ -110,3 +110,55 @@ Node 側のトークン化は Python と 260 件で完全一致した（末尾�
   - 「リポジトリを選んで移動する」は、gwqpull の README の Related 欄に ghqcd の説明文がそのまま書かれていて、gwqpull が 1 位、ghqcd は 4 位。
     兄弟ツールが互いの説明を README に載せていると、取り違えが起きる。
 - `--issues`: fzf のあいまい一致では、存在しない語（`zzzznotfound`）でも長い issue 本文に当たってしまった。`--exact` に変えて直した。
+
+## 実データでの確認（ローカルと Docker）
+
+### ローカル（M4 Pro、Node 24、ghq のリポジトリ 55 件）
+
+- `--index`: 6 秒。README 54 件、GitHub 上のリポジトリ 46 件、issue 1,571 件。
+- issue を全 chunk 入れると 12,765 chunk になり、初回の見込みは約 3.5 時間だった（issue 1 件あたり平均 8 chunk）。
+  1 件 1 chunk に変えて 1,796 chunk、37 分（途中は Docker と CPU を取り合った）。
+- `--semantic` 1 回: 中央値 2.1 秒（スレッド 8）、2.7 秒（スレッド 1）。30 回連続で止まらない。
+- 中国語の質問 7 問で 1 位が正解は 5 問。外れのうち 1 問は、前回と同じ gwqpull の Related 欄による取り違え。
+
+### Docker（Linux arm64、Debian bookworm、fzf 0.38、公開リポジトリ 18 件を SSH で clone）
+
+- npm pack した tarball を `npm install -g --ignore-scripts` で入れて動かした。
+- Node 22 と Node 20 のどちらでも、まっさらなキャッシュから `--index --semantic` が通った（ランタイムの導入、モデルのダウンロードとハッシュ確認、embedding）。
+  Node 20 の初回は 116 chunk で 8 分 16 秒。
+- Node 20（half の復号経路）と Node 22 のベクトルは 116 chunk すべてで cos 1.000000。
+- 中国語の質問 13 問で 1 位が正解は 11 問（Node 20 と Node 22 で同じ順位と score）。
+- トークン: `GH_TOKEN`、`gh auth login`、トークンなしのどれでも動いた。他人のリポジトリ（x-motemen/ghq）の issue は取り込まない。
+- 対話 UI（tmux から操作）: bash と zsh の関数経由で、`--semantic` と `--issues` の一覧、Enter での移動、Esc（exit 130、エラー表示なし）。
+
+### この確認で直したこと
+
+- トークンが無効（401）のとき、またはトークンがないときに、`--index` が前回の issue を消していた。前回の内容を残すようにした。
+- NOT_FOUND（消えた・アクセスできないリポジトリ）と gist を「API エラー」と数えていた。skip として数え、本物のエラーには最初の 1 件の内容を出すようにした。
+- `--issues` の対話 UI で、本文の奥で一致した行が横にスクロールし、リポジトリ名と issue 番号が見えなかった。`--no-hscroll` を足した。
+- 埋め込み中は SIGTERM / SIGHUP が効かなかった（ORT の `run()` がイベントループに戻らないため）。1 chunk ごとに戻るようにした。
+- Node 20 で `--semantic` がまれにセッション作成の中で止まり、SIGTERM も効かなかった（15 回に 1 回）。検索はスレッド 1 本にした（45 回で 0 回）。
+- テストが開発者の `gh auth token` を拾って GitHub に通信しうる状態だった。失敗する `gh` の shim を置いた。
+
+## 更新のしかた
+
+- 索引は `--index` を実行したときだけ更新する。自動では更新しない（非公開の issue を読むため）。
+  `--issues` と `--semantic` は、索引が 7 日より古いと stderr に 1 行知らせる。
+- 差分は 2 段で検知する。
+  1. README と issue の原文ごとの SHA-256。前回と同じで、ベクトルがそろっていれば、前回の chunk 一覧を使う（トークン化しない）。
+  2. chunk の文章ごとの SHA-256。前回のベクトルにないものだけ embedding する。
+- モデルは、原文が 1 件でも変わったときだけ読み込む。
+- `--index` は同時に 1 本だけ（`index.lock`）。2 本が同じベクトルのファイルに追記して壊れたことがあった。
+
+| 場合（ローカル、55 リポジトリ、1,796 chunk） | 修正前 | 修正後 |
+|---|---|---|
+| 変更なし | 31〜33 秒（全文のトークン化 20 秒、モデルの読み込み 3 秒を含む） | 8〜9 秒（GitHub からの取得だけ） |
+| README 1 件が変わった | 31 秒前後 | 12 秒（0 chunk の embedding） |
+| ベクトルが 1 件欠けていた | — | 11 秒（1 chunk の embedding） |
+
+Docker（Node 20、7 リポジトリ）: 初回 140 秒、変更なしの 2 回目 1 秒。
+
+### 未確認
+
+- Windows、x86_64、macOS 以外での fzf の新しい版。
+- Node 20 の索引作成（スレッド 8 本）で同じ停止が起きるか。2 回の初回作成では起きていない。起きたら Ctrl-C で止めて再実行すれば続きから進む。

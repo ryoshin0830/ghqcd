@@ -117,7 +117,8 @@ ghqcd --semantic "把长网址缩短后分享"   # the repo whose README or issu
   you can push to. Issues of repositories you only read are skipped: they are
   someone else's tracker and would crowd out your own. The token comes from
   `GH_TOKEN` / `GITHUB_TOKEN` (`GH_ENTERPRISE_TOKEN` for other hosts) or
-  `gh auth token`. Without one, only READMEs are indexed.
+  `gh auth token`. Without one, or when the API refuses it, each repository
+  keeps the description and issues of the last run.
 - **`--issues`** adds one fzf line per issue (`slug  #12 title  body…`).
   Matching is exact (space-separated substrings), because fuzzy matching over a
   whole issue body matches nearly anything. Choosing an issue lands you in its
@@ -145,10 +146,20 @@ you run `ghqcd --index --semantic`. Then, into the cache directory:
   [onnx-community/Qwen3-Embedding-0.6B-ONNX](https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX),
   checked against SHA-256 hashes in the source.
 
-The first embedding pass is the slow part: about 360 tokens a second on an
-Apple M4 Pro, so a few dozen repositories with their issues take tens of
-minutes. It is resumable, and later runs embed only what changed. A query runs
-locally and takes about two seconds, most of it loading the model.
+**Refreshing.** Nothing updates the index behind your back: it reads private
+issues, so it runs only when you ask. Re-run `ghqcd --index --semantic` (or just
+`--index`) when issues or READMEs have changed; `--issues` and `--semantic`
+remind you once the index is more than 7 days old. A refresh compares each
+README and issue with the last run by SHA-256 and re-embeds only the ones that
+changed: with nothing changed it takes as long as fetching from GitHub (8
+seconds for 55 repositories). Only one `--index` runs at a time.
+
+The first embedding pass is the slow part. Each README is split into chunks of
+up to 512 tokens; each issue contributes one chunk (its title and the start of
+its body). 55 repositories with 1,571 issues made 1,796 chunks and took 37
+minutes on an Apple M4 Pro. It is resumable, Ctrl-C is safe, and later runs
+embed only what changed. A query runs locally and takes two to three seconds,
+most of it loading the model.
 
 Why this model, and why fp16 rather than a smaller int8 file, is measured in
 [`docs/research/semantic-search-plan.md`](docs/research/semantic-search-plan.md).
