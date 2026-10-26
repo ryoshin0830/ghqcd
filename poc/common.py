@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 
 CACHE = Path.home() / "Library/Caches/ghqcd-poc/zhja"
+ISSUES = CACHE.parent / "issues"  # private data: never commit anything from here
 CORPORA = ["c1", "c2"]  # c1: original README + description (mixed languages); c2: Japanese-only
 LANGS = ["ja", "zh", "en", "zh_nolatin"]
 FROZEN = ["data/c1_original.json", "data/c2_ja.json", "data/queries.json"]

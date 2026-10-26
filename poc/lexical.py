@@ -22,21 +22,22 @@ def vec(c, idf):
     return {k: x / norm for k, x in v.items()}
 
 
-verify_manifest()
-corpora, queries = load_corpora(), load_queries()
-res = dict(model="lexical", runs={})
-for cname in CORPORA:
-    docs = corpora[cname]
-    tfs = [Counter(terms(d["text"])) for d in docs]
-    df = Counter(k for c in tfs for k in c)
-    idf = {k: math.log(len(docs) / n) + 1 for k, n in df.items()}
-    dvs = [vec(c, idf) for c in tfs]
-    for lang in LANGS:
-        out = []
-        for q in queries:
-            if not q[lang]: continue
-            qv = vec(Counter(terms(q[lang])), idf)
-            scored = [(d["id"], sum(w * dv.get(k, 0.0) for k, w in qv.items())) for d, dv in zip(docs, dvs)]
-            out.append(dict(id=q["id"], ranking=sorted(scored, key=lambda kv: (-kv[1], kv[0]))))
-        res["runs"][f"{cname}/{lang}"] = out
-json.dump(res, open("results/lexical.json", "w"), ensure_ascii=False, indent=1)
+if __name__ == "__main__":
+    verify_manifest()
+    corpora, queries = load_corpora(), load_queries()
+    res = dict(model="lexical", runs={})
+    for cname in CORPORA:
+        docs = corpora[cname]
+        tfs = [Counter(terms(d["text"])) for d in docs]
+        df = Counter(k for c in tfs for k in c)
+        idf = {k: math.log(len(docs) / n) + 1 for k, n in df.items()}
+        dvs = [vec(c, idf) for c in tfs]
+        for lang in LANGS:
+            out = []
+            for q in queries:
+                if not q[lang]: continue
+                qv = vec(Counter(terms(q[lang])), idf)
+                scored = [(d["id"], sum(w * dv.get(k, 0.0) for k, w in qv.items())) for d, dv in zip(docs, dvs)]
+                out.append(dict(id=q["id"], ranking=sorted(scored, key=lambda kv: (-kv[1], kv[0]))))
+            res["runs"][f"{cname}/{lang}"] = out
+    json.dump(res, open("results/lexical.json", "w"), ensure_ascii=False, indent=1)
