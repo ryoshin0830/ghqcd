@@ -11,12 +11,13 @@ name = sys.argv[1]
 cold = "--cold" in sys.argv
 os.environ["HF_HUB_OFFLINE"] = "1"  # inference never touches the network
 from sentence_transformers import SentenceTransformer
-from models import MODELS
+from models import MODELS, ALLOW, WEIGHTS, IGNORE
 
 m = MODELS[name]
 dl = json.load(open("results/download.json"))[name]
 from huggingface_hub import snapshot_download
-MODEL_PATH = snapshot_download(m["repo"], revision=m["rev"], local_files_only=True)
+MODEL_PATH = snapshot_download(m["repo"], revision=m["rev"], local_files_only=True,
+                               allow_patterns=ALLOW + WEIGHTS.get(name, ["model.safetensors"]), ignore_patterns=IGNORE)
 MAX_TOKENS = 512
 DEVICE = "mps"
 
