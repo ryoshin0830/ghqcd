@@ -353,7 +353,7 @@ function runAsync(args, env) {
 
 async function fakeGitHub() {
   const issues = {
-    apple: [{ number: 7, title: 'Timeout when syncing', body: 'The upload stalls after 30 seconds.', state: 'OPEN' }],
+    apple: [{ number: 7, title: 'Timeout when syncing', body: 'The upload stalls after 30 seconds.' }],
     banana: [],
   };
   const server = createServer((req, res) => {

@@ -672,7 +672,6 @@ function copyToClipboard(text) {
 
 // Loaded on demand so the plain picker never pays for it.
 const searchIndex = () => import('../lib/search-index.mjs');
-const flat = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 const pathOf = (line) => line.split('\t')[0];
 
 async function runIndex(repos, slugOf) {
@@ -746,7 +745,7 @@ async function pickSemantic(repos, slugOf) {
     return { selected: ranked[0].path, matches: ranked.length, extra: { score: +ranked[0].score.toFixed(4) } };
   }
   const lines = ranked.map((r) => `${r.path}\t${r.score.toFixed(2)}  ${slugOf(r.path)}` +
-    `${r.kind === 'issue' ? `  #${r.number}` : ''}  ${flat(r.preview)}`);
+    `${r.kind === 'issue' ? `  #${r.number}` : ''}  ${si.flat(r.preview)}`);
   const line = fzfPick(lines, [...TAB_LINES, '--no-sort'], '');
   const hit = ranked.find((r) => r.path === pathOf(line));
   return { selected: hit.path, matches: 1, extra: { score: +hit.score.toFixed(4) } };
