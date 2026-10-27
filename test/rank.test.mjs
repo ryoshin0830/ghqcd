@@ -1,7 +1,7 @@
 // The ranker behind the one search window. Pure: documents in, hits out.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { keywordRank, nameHits, pathHits, landing, matchLabel, matchContext } from '../lib/rank.mjs';
+import { keywordRank, nameHits, pathHits, landing, matchLabel, matchContext, LABELS } from '../lib/rank.mjs';
 
 const doc = (name, extra = {}) => ({
   key: `/r/${name}`, slug: `github.com/alice/${name}`, name, cloned: true, ...extra,
@@ -105,4 +105,23 @@ test('matchContext returns the lines around the first matching line', () => {
   assert.deepEqual(matchContext(text, ['needle']), ['b', 'c', 'd', 'the ＮＥＥＤＬＥ', 'f', 'g', 'h']);
   assert.deepEqual(matchContext('one\ntwo', ['zzz']), []);
   assert.deepEqual(matchContext('x needle', ['needle'], 1), ['x needle']);
+});
+
+test('a hit carries the description, so a line found by its name can show it', () => {
+  const [hit] = keywordRank([doc('short-url', { description: 'URL shortener service' })], 'url');
+  assert.deepEqual([hit.field, hit.description], ['name', 'URL shortener service']);
+});
+
+test('every field a keyword hit can report has a label in LABELS', () => {
+  const docs = [
+    doc('zebra'), doc('xzebrax'), doc('zzeebbrraa'), doc('o1', { slug: 'github.com/zebra/o1' }),
+    doc('o2', { description: 'zebra' }), doc('o3', { readme: 'zebra' }),
+    doc('o4', { issues: [{ number: 1, title: 'zebra', body: '' }] }), doc('o5', { issues: [{ number: 2, title: 'x', body: 'zebra' }] }),
+  ];
+  const fields = new Set();
+  for (const q of ['zebra', 'zbr']) for (const h of keywordRank(docs, q)) {
+    fields.add(h.field);
+    assert.ok(Object.hasOwn(LABELS, matchLabel(h)), `${h.field} → ${matchLabel(h)}`);
+  }
+  assert.deepEqual([...fields].sort(), ['description', 'fuzzy', 'issue', 'name', 'readme', 'slug']);
 });

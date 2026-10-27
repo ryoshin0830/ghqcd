@@ -810,7 +810,7 @@ function statusLine(si) {
     'enter go', 'ctrl-o open on GitHub', 'ctrl-r refresh'].join(' · '), width);
 }
 
-let matchLabel, matchContext; // from lib/rank.mjs, loaded with the window
+let matchLabel, matchContext, LABELS, flat; // from lib/rank.mjs, loaded with the window
 
 // Bold the query's words in a line, unless color is off.
 function mark(text, terms) {
@@ -830,19 +830,16 @@ function display(hit, terms) {
   const tint = hit.via === 'meaning' ? magenta : hit.via === 'code' ? yellow : cyan;
   const ref = hit.loc ?? (hit.number ? `#${hit.number}` : '');
   // Found by its name or path: the description is shown, dim, as context only.
-  const text = ['name', 'name*', 'path'].includes(label) ? dim(flatText(hit.description))
-    : mark(flatText(`${hit.via === 'meaning' && hit.number ? `#${hit.number} ` : ''}${hit.snippet ?? hit.description ?? ''}`), terms);
+  const text = LABELS[label]?.byName ? dim(flat(hit.description))
+    : mark(flat(`${hit.via === 'meaning' && hit.number ? `#${hit.number} ` : ''}${hit.snippet ?? hit.description ?? ''}`), terms);
   const score = hit.via === 'meaning' ? hit.score?.toFixed(2) : '';
   return `${label}|${ref}|${score ?? ''}\t${tint(label.padEnd(LABEL_WIDTH))} ${hit.slug}${hit.cloned ? '' : dim(' · not cloned')}  ${text}`;
 }
-const flatText = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
 // No query yet: everything, clones first, then the most recently pushed.
 const browse = (docs) => [...docs]
   .sort((a, b) => b.cloned - a.cloned || (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''))
-  .map((d) => `${d.key}\t||\t${' '.repeat(LABEL_WIDTH)} ${d.slug}${d.cloned ? '' : dim(' · not cloned')}  ${dim(flatText(d.description))}`);
-
-const WHAT = { name: 'the name', 'name*': 'the name (its letters in order)', path: 'the path', desc: 'the description', readme: 'the README', '~readme': 'the README' };
+  .map((d) => `${d.key}\t||\t${' '.repeat(LABEL_WIDTH)} ${d.slug}${d.cloned ? '' : dim(' · not cloned')}  ${dim(flat(d.description))}`);
 
 // The right pane: what matched and how, then the matched lines in place.
 function preview(docs, key, meta, q) {
@@ -851,7 +848,7 @@ function preview(docs, key, meta, q) {
   const [label = '', ref = '', score = ''] = meta.split('|');
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   const out = [bold(d.slug) + (d.cloned ? '' : dim('  not cloned: enter clones it'))];
-  const what = label.endsWith('issue') ? `issue ${ref}` : label === 'code' ? `code in ${ref}` : WHAT[label];
+  const what = label.endsWith('issue') ? `issue ${ref}` : label === 'code' ? `code in ${ref}` : LABELS[label.replace(/^~/, '')]?.what;
   const how = label.startsWith('~') ? `by meaning${score ? ` (similarity ${score})` : ''}` : 'by the words typed';
   if (what) out.push(`${dim('matched')} ${what} ${dim(how)}`, '');
   const passage = (text, head) => {
@@ -866,8 +863,8 @@ function preview(docs, key, meta, q) {
     out.push(...(grep.stdout ?? '').split('\n--\n')[0].split('\n').map((l) => mark(l, terms)));
   } else if (label === 'code') out.push(dim('ctrl-o opens the file on GitHub'));
   else if (label.endsWith('readme') && d.readme) out.push(...passage(d.readme, 12));
-  if (d.description && label !== 'desc') out.push('', flatText(d.description));
-  else if (label === 'desc') out.push(mark(flatText(d.description), terms));
+  if (d.description && label !== 'desc') out.push('', flat(d.description));
+  else if (label === 'desc') out.push(mark(flat(d.description), terms));
   if (d.cloned) {
     const log = spawnSync('git', ['-C', d.key, 'log', '--oneline', '-5'], { encoding: 'utf8' }).stdout?.trim();
     if (log) out.push('', dim('recent commits'), log);
@@ -921,7 +918,7 @@ async function searchWindow(si, repos, slugOf) {
       return browse(docs).forEach(write);
     }
     // A legend for the label column, and what is still on its way.
-    write(`\t||\t${dim(`“${q}” · name path desc readme issue code: the words typed${SEMANTIC ? ' · ~: by meaning, follows' : ''}`)}`);
+    write(`\t||\t${dim(`“${q}” · ${Object.keys(LABELS).join(' ')} code: the words typed${SEMANTIC ? ' · ~: by meaning, follows' : ''}`)}`);
     return streamResults({
       query: q, docs, write, signal, display: (h) => display(h, terms),
       code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
@@ -1078,7 +1075,7 @@ async function main() {
   }
   const si = await searchIndex();
   const rank = await import('../lib/rank.mjs');
-  ({ matchLabel, matchContext } = rank);
+  ({ matchLabel, matchContext, LABELS, flat } = rank);
   const docs = query ? si.readDocs(repos, slugOf) : [];
   // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
   // way fzf did before the index existed, so those queries still land. A
