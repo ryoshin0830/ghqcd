@@ -1,0 +1,418 @@
+{
+  "modelKey": "qwen3-embedding-0.6b-fp16-c25a394",
+  "visibilityVerifiedAt": "2026-10-27T17:10:03.689Z",
+  "visibilitySource": "GitHub GraphQL repository.isPrivate=false",
+  "repositories": [
+    {
+      "slug": "github.com/haruotsu/slack-review-notify",
+      "documentHash": "db93ae73cc46a3d9cb604ce3f66d8154ab75fe4e5b814ec802ed36505fc772c6",
+      "chunkKeys": [
+        "68a33ff5449f6dc38e09644e29ff8261",
+        "bd30cc9dcdfdd79f1cb780ffe1431396",
+        "77069566865029284bd88793c5f83d50",
+        "4426aace9fa4c1d0d0af05496d416715",
+        "c7ac471073a253a108ea44d3bb08c4f2",
+        "6f42096000dbd6334af0a38dadc629e2",
+        "54572042aeec8f23f7c9a080701ee648",
+        "a72d8877a73549b6d7e1c1a78b3b52a0",
+        "63cf2702cb9b75c3fd209e1374bd4939",
+        "33d74b4fc2f02fd4df3e214a1e00b9ed",
+        "06193fa91476c34202170812e235a225",
+        "926df9d6d0c4177398635d6471a6a1f9",
+        "ed10804a713788dcb3db566b3394b910",
+        "5087000d37ae0b7298f629e017bd9b9e",
+        "c88c330445a422a88ffee4623e5e6b6b",
+        "5036d0cb2c636f2c2604544fd6343504",
+        "67d6b11c64fcd928b9011c6d6d9576e0",
+        "b8533cd62776a7d0ccaa9623bd32e0a5",
+        "ad0474ea82a62dd9d71274aac7326de7",
+        "22c38f6c4b29b5c159e3d175d0d2656f",
+        "afbf1ced5637f30800a31d159a837983",
+        "8c8f758852fd4b886fea4f4b7e142cbf",
+        "afab211c6560c7e84656e5c972bf9169",
+        "c9713007fb6f16a7970bf13ca65e0836",
+        "7da51e7ff81543e1b70f8f4a8de94f03",
+        "9bb6e4f34410fc550b2502a9a31f5bc4",
+        "3edee40c742860da5f07ccbfe214a6fc"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/cc-dev-tools",
+      "documentHash": "6f15ff165052ffe2bc944394a803a2d84339569dc16d8d022639492c450dfbdf",
+      "chunkKeys": [
+        "56deb0ab1bc9b900d30f29cafc66623e",
+        "afafc673b6ed58391056c4826272777e",
+        "737cd6520411d481e378b1430e06e587"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/ccverbs",
+      "documentHash": "349e8f38bca5e781527066def17f04af14e130d244285bd2e7da31e4b9bd8ab5",
+      "chunkKeys": [
+        "29d56ac1b9babee35b328b037ec32904",
+        "19c734fb903ffc821a364bc524d8633d",
+        "76548f597510250d56cdd7335a726f39",
+        "0b841b2c9278ae00a684c71227762c73",
+        "83c789f56da05da6167b084ba4d52ef8",
+        "89f1c6fbde47590b4952cb77eca5fb3b",
+        "0e2bc792dabbff6e2258e993eebc3886",
+        "7fcb27f8e5c92380a19d343371291631",
+        "09b6afd655dc9ecceb006ddbeef50e64",
+        "d1dd334a3b08681ab333bc33c5dbda6d",
+        "09ee55f31c1f596a222409b05f373cde",
+        "6888e8c7e7d710f21cb471bf07744474",
+        "112bbc0971b9ec221370b24ed8b654d9",
+        "dfb16a2d051181b866b2a207977a62c4",
+        "70328d03456beeaa36eb0ab4292268f2",
+        "7af90237bf63b2d069be445a251c41a3",
+        "277e862a8a01a40632a3f09df3ec6dcd",
+        "668095b9781addc8a806703adf0d3e6d",
+        "cf16abc5fe3940ea06198d8902ddbfd6"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/expense-ledger",
+      "documentHash": "3010a902cfc87c8b0da9495c37112cdeec024e66fec3773b4b80f4e5767f6947",
+      "chunkKeys": [
+        "ded99d16e9707dd31044c44f0d8814ce",
+        "d99f08b92826fcae9cef07bb3eff4bfc",
+        "26ea073fdcc4e58aafd72b052f9098b2"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/filebrowser",
+      "documentHash": "c54b9e23ae55004c9ec2fad7d18f2f5bbaea2b5d2a9ba7596fd373fa6e8b5e05",
+      "chunkKeys": [
+        "86937dc173f9d6d94153212775083964"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/fumi",
+      "documentHash": "109a5eec0f14103ab7a73f8ee50e32eb4cae56ddce59a92cca2c96052e1ba234",
+      "chunkKeys": [
+        "820fc31d67c005fd4fdbd2017d375049",
+        "538110e5abe22bd5655c60e719f6ea30",
+        "3e857a6c991dc81e93ed2ac3ffb96d8d",
+        "f72a1d8c2be0db7ef6ef10025a456ce2",
+        "daea3b5e8a7eeb2494bb44b1996efd68"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/fzf-ghq-remote",
+      "documentHash": "d1691f34154acc8321622c32d3c9b5bfaad5b46fcb26cde5b6686e72a04c2257",
+      "chunkKeys": [
+        "96bbfe4c90e522ef0687f0cd0905a017",
+        "6c363e3c6e137e8734f4484cc663b372",
+        "9bbbb4aeb13800b31ce25e38c6771790",
+        "d56bac71795d67acaced13bf13ee44f3",
+        "a8525b79656e04eb4758faca63a1e8ec"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/ghnew",
+      "documentHash": "a85e336eeb3ee5fbd7a840eba5050b92b0a2c36e42fdd9839f485076f32d9d7d",
+      "chunkKeys": [
+        "f433c6f9370dc63f9291814e9341b41a",
+        "dbd46cb6dcef6ce007058ffaad9c6345",
+        "81b99bd361547ec708f49452977665bf",
+        "5e552980b66397c883dd5db853d33cb7",
+        "e43087e6202eab9b7ca0f4bcb8fdafb2"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/ghqcd",
+      "documentHash": "29f2e4710bd7eb6c25c5580ac29078baa8801c20dfb900e77515b1c64d5b0b8c",
+      "chunkKeys": [
+        "7228955dbdd9ccf2794b770fa17108a8",
+        "52300cf18615ea31af47b531d83717f0",
+        "233d87e687fa3de3615cbabe48eddd72",
+        "63cf2fece15a7e5027288f0db76a5b77"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/gistree",
+      "documentHash": "bde54d710ec850fb68a23c7a11706b8bb60555b890690305702d8a7b29982392",
+      "chunkKeys": [
+        "995e8b9de0dc84afec505a8e2495ab22",
+        "b6dd0c9849d518d659122c79e4ab5a07"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/gmo-quiz",
+      "documentHash": "afb1ca9c7f43270fd427c30647e191cc35f7cbe206d0db6d7065d1cc9b157814",
+      "chunkKeys": [
+        "eaa180aea03e46e50f3a423578fc97b0"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/google-mcp",
+      "documentHash": "4a9069f57c150eb98c38537a261b1d072b47a1e0dd914b7929957b04dc935597",
+      "chunkKeys": [
+        "780c68865b4bfa082a5ba9fc31f8b82b"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/grantloom",
+      "documentHash": "117eb948b36495d61f19005ded09437957801f2906f5e0b4ec86bbc387999ade",
+      "chunkKeys": [
+        "ce954555f5099fa4f5a166e4a3281b92",
+        "9d709f94409b175216e9d2cdce556d59",
+        "0e1a0d997972c747e3e006f6307a4d79",
+        "1d70845732bd57e5c85eea18fa1eca8c",
+        "c55c705bf840f89911827da7e49fab6f",
+        "c716859427eaddb4395168abd92d9bd6",
+        "d5a56e2bbe57b69a6107b96c700c3d9e",
+        "8eebc83b124f20d2b25d8ca996ead495",
+        "f71eb676400f03af4a414e51b6b56f81",
+        "d8cb4dae018890010937e615b9368790",
+        "0f73f1e299c40930bc9df24477acb663",
+        "6a1b8bf44beea3d70691b05770918acf",
+        "79abb49c9b9e08e211592f8001a63bca",
+        "b6ce93d0d9bc2df70cf448110744a86e",
+        "c8e76e7dbc89128ae6836be43990b3c2"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/gwqadd",
+      "documentHash": "c51df31c5bc88496a3fc437f7c682f8c48c58001d4c2ead0e9158a65ca8a3b80",
+      "chunkKeys": [
+        "b4d31e7b3afa5b87772d58ae4757bb1a",
+        "cde769fd61fa9c0e2bc848a34e710fb3",
+        "a8e00c4098d97ee1c68a238ab8ad96ea",
+        "54caab0bb7edc7581356b7fbdd044fd6",
+        "ca9dd17fc43296b039acfe0bbc95fd6c",
+        "92a1eef166af11fdc184c81053ee0258",
+        "af1afc6a2149e8ed22ebb78e656f8f19",
+        "f812a8a55f132cdad0c3adf70c7c144c"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/gwqcd",
+      "documentHash": "bb55f01d098ce0cd3e433e7aaf9dc6c09d3b45467acbd4de6b602d5c1af489c9",
+      "chunkKeys": [
+        "e8bbc8e9cca1150e3975c4d3cf18c9ce",
+        "e84aa81c4866a7908e4f922488a7fc3c",
+        "b45d928a9816c18cb8878c3f70542e82",
+        "8296e5e60a834b59cbb7504471353cb3",
+        "ae260a0050094ad78df215f92f7157e5",
+        "d35b6bdcc16cbf864062df279b69ebd4",
+        "a5e4e5519c0994a6a6c95eaab22636a3"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/gwqpull",
+      "documentHash": "5e01d2bafa33d5706f381783ebd5986b3d24c58c276deb66cb2c8376a51770df",
+      "chunkKeys": [
+        "55cbd6908e4bff804ed611c4a23373f8",
+        "d979642fe1d92a95b3fa4ed60384b813",
+        "770ba3ee94652ff53a603aa8d9da2bea",
+        "8b64a6d2cb1d98540ac6c2f868068414",
+        "6c9a05668d4ff127472b39dae7785e7d"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/hermes-agent",
+      "documentHash": "9c35ff9bcf2ee0f3abe41e899cf4112fc5994ecd23a56dbd0cd62c22d1b80334",
+      "chunkKeys": [
+        "f0a376527c11304ced77f69ea72f867d",
+        "fa5b2f53b47851400a87025f6e6b76a4",
+        "f10899de5eca781f63ca77a3a52fc175",
+        "71770e0cca2f6d5cf4372efa3dacd8d4",
+        "51443792524b20d31f3ec777fb47a969",
+        "faf5f0f1cfa664e22d7ab5d117dd7c91",
+        "9f2db16455a29459f068cf7e3db9649f",
+        "e6d700f69f5b855fd8a1b21baab37b3d",
+        "62e0c854b3fd9e3820e51a42ad2600a9",
+        "83999018bc86d96ad6db1c67a0cd0a6e"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/isucon-shin",
+      "documentHash": "c813aa103e10976a9f8033a5d312950e3a0e1cd7d3440183632c747392c7a397",
+      "chunkKeys": [
+        "5ca691d64fd0e0077cafbc87d5adefcd",
+        "0b491b27c5d7f80606e3ceed4f419da6",
+        "5ae3393b126554b22c99c7c163f4ec72",
+        "183014f00e4bd15e2da0f4d7a3bbaf2b",
+        "92f328546e2b2cb3ad9e76113478d18d",
+        "5220bb868c057f43437b2d48354061fd"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/japanese-tts-comparison",
+      "documentHash": "33ed2bb28c7048b96a55577ed2d7fac855da5547f44c22017d87011ff5d32b5e",
+      "chunkKeys": [
+        "3fcdb1e70e62010f17adda81b23d2569",
+        "dc6acd80dd026f5f7c84d75c134a9e49",
+        "a120eb63e7b94e54bcf982907ef3ef98",
+        "3e2f03d3f66f4458021011047c805adb",
+        "9759bc7d4c1e7e3c192e482b3c7f9f7f",
+        "c82219102b97fdba1bfd033dc392e951",
+        "90493f4f518fc606775dc616426de828",
+        "f1bf3c3d590870d71a32dce9d3a206ae",
+        "b2559c43a294461eb807d442574777ff",
+        "caa7606c3e4c0a7bb7f0ab559da626b9"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/kane",
+      "documentHash": "4f7673bd4da595d15f60ab85c1b61f70514dedef3bd04137ad1a978d1e419804",
+      "chunkKeys": [
+        "d47e6009a2fbf0b1c316f78c91614bf2"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/karabiner-lang",
+      "documentHash": "10742923bb96b72f6c8bf2f51ef952b8a32c6cbec113dd9390aab034dca77087",
+      "chunkKeys": [
+        "635c78d21c510d14d0d9aed436008256"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/latex-jp-en-references-template",
+      "documentHash": "ed70faa9744e9423a81f71436ef8dc4a91d53329e072a8a894016d540d514ed0",
+      "chunkKeys": [
+        "a55ba4fb7a189d21abb155451cbcdb2c",
+        "8dbcc5f2d727d32acad33f30635d07a3",
+        "0ec5a25eb7d68a11468eddce9cc9ea04",
+        "2e14a83bcb8a354c9cba054c3ac62423",
+        "8879f7f11b97ee1fe7f410f35905b738"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/markdown_slide",
+      "documentHash": "21ac54b3be92c47e0e013c9af8b831a234b5d613f49464937ed7e9fa157ba4d2",
+      "chunkKeys": [
+        "1f4d26269ee689dcc441e59593e8a133",
+        "2be438584212de6b0ad1666f7d079fb1"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/mp3-album-info-renamer",
+      "documentHash": "c6ef8d7a150a7da4833e9014aa2ba8081ec60b7e5cc6f32526e706fbbb722f1d",
+      "chunkKeys": [
+        "2f00c272bda1ae13b14d1f681244d8d3"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/outlook-mcp",
+      "documentHash": "3770fa1c0c3003b1d4b1b6a5547191052f55c0d2e732b37458204997d1a9e774",
+      "chunkKeys": [
+        "69c1cbdb91592c501cdb82ec59d947d3",
+        "e4491a9944aa475ac7dc2134d8aeb739"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/page-checker",
+      "documentHash": "3e366332f43cfd747a71dde9fb0df70eb6b65ca72fac8372267c1c2504da1860",
+      "chunkKeys": [
+        "db00242f951099e10b4e46b2ecb59546"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/picking",
+      "documentHash": "abbead0be5289b2c4a6a16ffe7fa7fe9e973565e55b39942b6391d7f1627549f",
+      "chunkKeys": [
+        "fdf85345c6c4284e016e52c4974188fe",
+        "0a631adcf3691e2322e94eb425751508",
+        "a990384162e8f17c0f800b17e663fa66",
+        "24707d9c5e9913e55227df4db3d9ce20"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/plaud-toolkit",
+      "documentHash": "ae0ea0c39d28fe8f5095207895831064db0886eba6eb9711d24f165db87e1e86",
+      "chunkKeys": [
+        "62eed29e97ef53703fadcded4849d7c6",
+        "87725c504430c860c2d508386239838d",
+        "bf2209e22d5539030bf79fc8f15b723e"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/portfolio",
+      "documentHash": "c1d20aaba67384075df2d7f5dcfab491eca2859c437526412ba31b14adccdfdc",
+      "chunkKeys": [
+        "0ae73eef0c499889889be65cf432e99b",
+        "e904075d1fbb8f8cf6863fda2036e033",
+        "5f8ee0f7708bf9dccfaba7514adf96d7",
+        "b415770326703d664f8530b1a23ddb78",
+        "a76536f3d753689c5e20786db3453abd",
+        "b63063819c318ddd95728a42ade75dc5",
+        "7b98ba8b3bb5f3a492f92e3feaee8307",
+        "701e26347d361e2bbb36dc5783d96379",
+        "5683ad0118db06ec31711d68a8d0057a",
+        "cf58c6b081e012ad039fe6a4f609e8d5",
+        "354e38353ec17a9c869a868a06bc32a8",
+        "aa3ce33d1258182e2f5ed7ba64d7bd8b",
+        "b89a2730d0e748f1c8621afa9ec81f83",
+        "b6df88a0aedd913b43b6f6a4495b09e5",
+        "1bd3c99d17f37271efe0deb6c0662457",
+        "0696efa9ceb78eee47ae2295d920143f",
+        "f4aff84e35d09f4e05d9d00b6ff8e2b2",
+        "9dbf695ec1b4c73b60e4d57316e4d45a",
+        "653e614bcdc08476d0d4ae0b13c2b4c4",
+        "3599b3672bf120493cb46842b794319d",
+        "efbf8defb61f9ade6db9815a52b5df62",
+        "e32a2e84dd4967ffcfbfb8b972af6d9a",
+        "ebbabb94886b0c5b60ffbb842165705a"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/ryoshin0830",
+      "documentHash": "9dfcc046281a9fa2aba319cf24eb33695aaaa2d63846377395d3900317ec587e",
+      "chunkKeys": [
+        "b1efe7d9c13ed07977e1b781b277af31"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/short-url",
+      "documentHash": "28f45a576130eeae9a3106efcbf8623c318a0be2f5cd18bf80b63fc9695b1e7b",
+      "chunkKeys": [
+        "2c583c823ec9ff4ee1308f1ba886dd64",
+        "5b1cf1f7ab765d19f5fcd8ed2f3b6103",
+        "729d38adbe3cecd093e92f0cb6b8c6fd",
+        "2b58fb4fc2d8d83539867f6f796af55f",
+        "57693c9318327f4caa3e98ba1c3fb74e"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/slack-review-notify",
+      "documentHash": "b59e2e4e7510ea764ca75f61e2d87a07864d4bd47a2d6531bed9e3edd272b2a8",
+      "chunkKeys": [
+        "68a33ff5449f6dc38e09644e29ff8261",
+        "bd30cc9dcdfdd79f1cb780ffe1431396",
+        "77069566865029284bd88793c5f83d50",
+        "dbfb00cd7fa018d8bf98d52c6829d1a0",
+        "01ae631efdf8a0a0bff7b9fa45e1882f",
+        "2839995b7145f0e6a3f4786947185ccb"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/syncskills",
+      "documentHash": "6ee61de4396c13d102d33e7da709126333cce9d2eadaee83ff34a5ede97a109c",
+      "chunkKeys": [
+        "c85f46196585c70fc97db10612dfdef9",
+        "82760397117f1c126ba90776d2a23f11",
+        "3c47e081cdcfd8c1e4a551f19e9e4008",
+        "c87740e49ec80e24f3f1c1e65ef0a922",
+        "001b6cc09ff2249baf5a17e2261ccf83",
+        "4d2b9e8d225d0e655e98fa50d209e8fb"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/thesis_typst",
+      "documentHash": "c7d186386e0e1d565cf386f426ca9e73685db1ff5a879f2017f66b15a8dce2ec",
+      "chunkKeys": [
+        "7230b8464b32d256ba9a9a843120dd2e"
+      ]
+    },
+    {
+      "slug": "github.com/ryoshin0830/wip-ui",
+      "documentHash": "c76d51854d6e6ea9ec9deadc0003c8a0844d52bbd9551bce23e758f8983c954b",
+      "chunkKeys": [
+        "70d2993e55477d97546ddfd99aec9d41",
+        "6ef215d0c4e68a8901251ef5f722dc6d"
+      ]
+    }
+  ]
+}

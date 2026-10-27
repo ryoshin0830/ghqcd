@@ -1,0 +1,590 @@
+{
+  "schemaVersion": 1,
+  "relevanceRule": "A repository directly implements or documents the requested primary capability. Related-links mentions, infrastructure dependencies and a general coding agent's ability to build a tool do not make that repository relevant. Labels apply only within the frozen public corpus. These are agent-authored functional judgments, not independent human ground truth.",
+  "splitRule": "Entire intent groups, including all languages and lengths, stay in one split. Choose threshold on calibration only; report the chosen threshold and the old 0.45 on holdout.",
+  "groups": [
+    {
+      "id": "encrypt",
+      "split": "regression",
+      "relevant": [
+        "ryoshin0830/fumi"
+      ],
+      "short": [
+        "加密",
+        "暗号化",
+        "encrypt"
+      ],
+      "long": [
+        "在浏览器里加密文件后安全发给别人",
+        "ブラウザでファイルを暗号化して相手に安全に渡す",
+        "Encrypt a file in the browser and share it securely"
+      ]
+    },
+    {
+      "id": "short-url",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/short-url"
+      ],
+      "short": [
+        "短链接",
+        "URL短縮",
+        "URL shortener"
+      ],
+      "long": [
+        "把很长的网址缩成一个短链接",
+        "長いURLを短いリンクに変換する",
+        "Turn a long web address into a short redirect link"
+      ]
+    },
+    {
+      "id": "random-teams",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/picking"
+      ],
+      "short": [
+        "随机分组",
+        "ランダムな班分け",
+        "random teams"
+      ],
+      "long": [
+        "把一份人员名单随机分成几个小组",
+        "参加者の名簿をランダムに複数のチームに分ける",
+        "Randomly divide a list of participants into teams"
+      ]
+    },
+    {
+      "id": "repo-picker",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/ghqcd",
+        "ryoshin0830/fzf-ghq-remote"
+      ],
+      "short": [
+        "仓库切换",
+        "リポジトリ選択",
+        "repository picker"
+      ],
+      "long": [
+        "从终端搜索已经克隆的仓库并进入目录",
+        "ターミナルでclone済みのリポジトリを選んで移動する",
+        "Find a cloned repository in the terminal and change into its directory"
+      ]
+    },
+    {
+      "id": "worktree-picker",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/gwqcd",
+        "ryoshin0830/fzf-ghq-remote"
+      ],
+      "short": [
+        "已有工作树列表选择",
+        "既存作業ツリーの一覧選択",
+        "existing worktree list picker"
+      ],
+      "long": [
+        "列出多个仓库中已经存在的工作树并选择一个进入目录",
+        "複数のリポジトリの既存worktreeを一覧から選んでそのディレクトリに移動する",
+        "List already-existing worktrees across repositories and select one to enter"
+      ]
+    },
+    {
+      "id": "worktree-create",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/gwqadd",
+        "ryoshin0830/gwqpull"
+      ],
+      "short": [
+        "创建工作树",
+        "作業ツリーの作成",
+        "create a worktree"
+      ],
+      "long": [
+        "为新的分支创建独立的git工作树并切换过去",
+        "新しいブランチ用にgit worktreeを作ってそこへ移動する",
+        "Create a separate git worktree for a new branch and enter it"
+      ]
+    },
+    {
+      "id": "pr-worktree",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/gwqpull"
+      ],
+      "short": [
+        "PR工作树",
+        "PRの作業ツリー",
+        "PR worktree"
+      ],
+      "long": [
+        "输入拉取请求的链接自动克隆仓库并创建工作树",
+        "プルリクエストのURLからcloneとworktree作成を一度に行う",
+        "Clone a pull request URL and create a worktree for reviewing it"
+      ]
+    },
+    {
+      "id": "new-repo",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/ghnew"
+      ],
+      "short": [
+        "新建远程仓库",
+        "GitHubリポジトリ新規作成",
+        "create a GitHub repository"
+      ],
+      "long": [
+        "一条命令在GitHub新建仓库然后克隆到本地",
+        "コマンド一つでGitHubのリポジトリを新規作成してcloneする",
+        "Create a new remote GitHub repository and clone it in one command"
+      ]
+    },
+    {
+      "id": "outlook",
+      "split": "holdout",
+      "relevant": [
+        "ryoshin0830/outlook-mcp"
+      ],
+      "short": [
+        "微软邮箱MCP",
+        "Outlookメール連携",
+        "Outlook email MCP"
+      ],
+      "long": [
+        "让AI助手通过MCP搜索和读取微软邮箱里的邮件",
+        "AIからMCP経由でOutlookのメールを検索して読む",
+        "Let an AI assistant search and read Outlook mail through MCP"
+      ]
+    },
+    {
+      "id": "calendar",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/google-mcp"
+      ],
+      "short": [
+        "谷歌日历MCP",
+        "Googleカレンダー連携",
+        "Google Calendar MCP"
+      ],
+      "long": [
+        "给AI助手提供谷歌日历的远程MCP接口",
+        "GoogleカレンダーをAIから使うリモートMCPサーバー",
+        "Expose Google Calendar to an AI assistant through a remote MCP server"
+      ]
+    },
+    {
+      "id": "slides",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/markdown_slide"
+      ],
+      "short": [
+        "用Markdown做幻灯片",
+        "Markdownスライド",
+        "Markdown slides"
+      ],
+      "long": [
+        "用纯文本标记语言和图表生成演示幻灯片",
+        "Markdownと図を使ってプレゼン資料を作る",
+        "Create presentation slides from Markdown text and diagrams"
+      ]
+    },
+    {
+      "id": "gist-tree",
+      "split": "holdout",
+      "relevant": [
+        "ryoshin0830/gistree"
+      ],
+      "short": [
+        "Gist文件树",
+        "Gistのファイル一覧",
+        "Gist file tree"
+      ],
+      "long": [
+        "让浏览器中的GitHub Gist显示所有文件和目录树",
+        "GitHub Gistの全ファイルをブラウザ拡張で見やすく一覧にする",
+        "Show all files of a GitHub Gist in a browser extension file tree"
+      ]
+    },
+    {
+      "id": "tts",
+      "split": "holdout",
+      "relevant": [
+        "ryoshin0830/japanese-tts-comparison"
+      ],
+      "short": [
+        "日语语音合成对比",
+        "日本語TTS比較",
+        "Japanese TTS comparison"
+      ],
+      "long": [
+        "比较多个日语朗读模型的声音效果费用和速度",
+        "日本語の音声合成モデルの音質と料金と速度を比較する",
+        "Compare the sound quality, cost and speed of Japanese text-to-speech models"
+      ]
+    },
+    {
+      "id": "skill-sync",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/syncskills"
+      ],
+      "short": [
+        "跨设备技能同步",
+        "端末間のスキル同期",
+        "sync skills across devices"
+      ],
+      "long": [
+        "在多台电脑之间同步AI代理的技能和MCP配置",
+        "複数のパソコンでAIエージェントのスキルとMCP設定を同期する",
+        "Synchronize AI agent skills and MCP configurations between computers"
+      ]
+    },
+    {
+      "id": "latex-references",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/latex-jp-en-references-template"
+      ],
+      "short": [
+        "日英混合参考文献",
+        "日英文献の分割表示",
+        "Japanese English bibliography"
+      ],
+      "long": [
+        "排版论文时把日语和英语参考文献自动分开显示",
+        "論文の日本語文献と英語文献を自動で分けて整形する",
+        "Format a paper bibliography with Japanese and English references in separate lists"
+      ]
+    },
+    {
+      "id": "review-bot",
+      "split": "calibration",
+      "relevant": [
+        "haruotsu/slack-review-notify",
+        "ryoshin0830/slack-review-notify"
+      ],
+      "short": [
+        "Slack审查提醒",
+        "Slackレビュー通知",
+        "Slack review reminders"
+      ],
+      "long": [
+        "给PR加标签后自动通知Slack并分配审查者",
+        "PRのラベルからSlackへ通知してレビュー担当者を割り当てる",
+        "Notify Slack when a PR is labeled and assign reviewers automatically"
+      ]
+    },
+    {
+      "id": "pdf-pages",
+      "split": "holdout",
+      "relevant": [
+        "ryoshin0830/page-checker"
+      ],
+      "short": [
+        "PDF缺页检查",
+        "PDFの欠落ページ確認",
+        "PDF missing page checker"
+      ],
+      "long": [
+        "把扫描教材每页的页码裁出来检查是否缺页",
+        "スキャンした教科書のページ番号を並べて欠落を確認する",
+        "Inspect cropped page-number regions to find missing pages in a scanned textbook PDF"
+      ]
+    },
+    {
+      "id": "google-oauth",
+      "split": "holdout",
+      "relevant": [
+        "ryoshin0830/grantloom"
+      ],
+      "short": [
+        "谷歌OAuth令牌管理",
+        "Google認可トークン管理",
+        "Google OAuth token management"
+      ],
+      "long": [
+        "为命令行和AI代理取得并保管谷歌授权令牌而不打印密钥",
+        "CLIとAIエージェント用のGoogle認可を安全に管理する",
+        "Obtain and store Google OAuth tokens for CLI tools and AI agents without printing secrets"
+      ]
+    },
+    {
+      "id": "file-browser",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/filebrowser"
+      ],
+      "short": [
+        "网页文件管理器",
+        "Webファイル管理",
+        "web file manager"
+      ],
+      "long": [
+        "通过网页浏览上传和管理服务器里的文件",
+        "ブラウザからサーバーのファイルを閲覧しアップロードする",
+        "Browse, upload and manage files on a server through a web interface"
+      ]
+    },
+    {
+      "id": "mp3-titles",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/mp3-album-info-renamer"
+      ],
+      "short": [
+        "MP3标题重命名",
+        "MP3タイトル変更",
+        "rename MP3 title tags"
+      ],
+      "long": [
+        "把目录里MP3的标题标签改成与文件名一致",
+        "フォルダ内のMP3の曲名タグをファイル名に合わせる",
+        "Set the title metadata of MP3 files to match their filenames"
+      ]
+    },
+    {
+      "id": "personal-finance",
+      "split": "holdout",
+      "relevant": [
+        "ryoshin0830/kane"
+      ],
+      "short": [
+        "个人理财MCP",
+        "個人会計MCP",
+        "personal finance MCP"
+      ],
+      "long": [
+        "提供API和MCP让AI自动导入分类并分析个人消费",
+        "APIとMCPで個人の支出の取込みと分類と分析を自動化する",
+        "Use an API and MCP to automate importing, categorizing and analyzing personal expenses"
+      ]
+    },
+    {
+      "id": "expense-ledger",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/expense-ledger"
+      ],
+      "short": [
+        "多币种消费账本",
+        "多通貨の支出帳簿",
+        "multi-currency expense ledger"
+      ],
+      "long": [
+        "用谷歌表格保存不同币种的消费并记录地点和支付方式",
+        "複数通貨の支出と場所と支払方法をGoogle Sheetsに記録する",
+        "Record multi-currency expenses, locations and payment methods in Google Sheets"
+      ]
+    },
+    {
+      "id": "keyboard-language",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/karabiner-lang"
+      ],
+      "short": [
+        "按键切换输入法",
+        "キーで入力言語を切替",
+        "keyboard input language switch"
+      ],
+      "long": [
+        "用左右Command和右Option分别切换英语日语和中文输入法",
+        "左右のCommandと右Optionで英語と日本語と中国語の入力を切り替える",
+        "Switch English, Japanese and Chinese input using left Command, right Command and right Option"
+      ]
+    },
+    {
+      "id": "spinner-verbs",
+      "split": "holdout",
+      "relevant": [
+        "ryoshin0830/ccverbs"
+      ],
+      "short": [
+        "自定义Claude加载动词",
+        "Claudeの待機動詞変更",
+        "custom Claude spinner verbs"
+      ],
+      "long": [
+        "修改Claude Code运行时旋转提示里显示的动词",
+        "Claude Codeの処理待ちスピナーに出る動詞を好きな言葉に変える",
+        "Customize the verbs displayed in the Claude Code loading spinner"
+      ]
+    },
+    {
+      "id": "react-ui",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/wip-ui"
+      ],
+      "short": [
+        "React设计系统组件",
+        "React UIコンポーネント集",
+        "React design system components"
+      ],
+      "long": [
+        "使用React和TypeScript实现公司设计系统的界面组件库",
+        "会社のデザインシステムをReactとTypeScriptのUI部品として使う",
+        "Use a company design system as a React and TypeScript UI component library"
+      ]
+    },
+    {
+      "id": "plaud-api",
+      "split": "calibration",
+      "relevant": [
+        "ryoshin0830/plaud-toolkit"
+      ],
+      "short": [
+        "录音卡片云端API",
+        "録音カードのクラウドAPI",
+        "recording card cloud API"
+      ],
+      "long": [
+        "用命令行和MCP访问录音卡片服务并自动管理访问令牌",
+        "録音デバイスのクラウドAPIをCLIとMCPから使いトークンを自動管理する",
+        "Access a recording-device cloud API through a CLI and MCP with automatic token management"
+      ]
+    },
+    {
+      "id": "stock-trading",
+      "split": "calibration",
+      "relevant": [],
+      "short": [
+        "股票自动交易",
+        "株の自動売買",
+        "automated stock trading"
+      ],
+      "long": [
+        "自动向证券交易所下单买卖股票的机器人",
+        "証券取引所へ注文を出して株を自動売買するロボット",
+        "A bot that submits stock buy and sell orders to a securities exchange"
+      ]
+    },
+    {
+      "id": "image-background",
+      "split": "calibration",
+      "relevant": [],
+      "short": [
+        "图片去背景",
+        "画像の背景除去",
+        "remove image background"
+      ],
+      "long": [
+        "自动抠图并把照片背景变成透明",
+        "写真から人物を切り抜いて背景を透明にする",
+        "Automatically cut out a photo subject and make its background transparent"
+      ]
+    },
+    {
+      "id": "antivirus",
+      "split": "holdout",
+      "relevant": [],
+      "short": [
+        "病毒扫描",
+        "ウイルス検査",
+        "antivirus scanner"
+      ],
+      "long": [
+        "扫描电脑文件中的恶意软件和病毒",
+        "パソコン内のファイルからウイルスやマルウェアを検出する",
+        "Scan files on a computer for viruses and malware"
+      ]
+    },
+    {
+      "id": "vpn-server",
+      "split": "calibration",
+      "relevant": [],
+      "short": [
+        "部署VPN服务器",
+        "VPNサーバー構築",
+        "deploy a VPN server"
+      ],
+      "long": [
+        "自动部署并配置私人虚拟专用网络服务器",
+        "個人用のVPNサーバーを自動構築して設定する",
+        "Automatically deploy and configure a private VPN server"
+      ]
+    },
+    {
+      "id": "restaurant-booking",
+      "split": "holdout",
+      "relevant": [],
+      "short": [
+        "餐厅自动订位",
+        "レストラン自動予約",
+        "automatic restaurant booking"
+      ],
+      "long": [
+        "检测餐厅的空座并自动预约晚餐位子",
+        "レストランの空席を検知して夕食を自動予約する",
+        "Detect available restaurant tables and automatically book a dinner reservation"
+      ]
+    },
+    {
+      "id": "gif-converter",
+      "split": "calibration",
+      "relevant": [],
+      "short": [
+        "视频转GIF",
+        "動画をGIFに変換",
+        "convert video to GIF"
+      ],
+      "long": [
+        "把视频文件转换成循环播放的GIF动画",
+        "動画ファイルを繰り返し再生するGIFアニメーションに変換する",
+        "Convert a video file into a looping animated GIF"
+      ]
+    },
+    {
+      "id": "earthquake-alert",
+      "split": "calibration",
+      "relevant": [],
+      "short": [
+        "地震预警",
+        "緊急地震速報",
+        "earthquake early warning"
+      ],
+      "long": [
+        "从地震传感器接收数据并发送实时预警",
+        "地震センサーのデータからリアルタイムに早期警報を送る",
+        "Send real-time early warnings from earthquake sensor data"
+      ]
+    },
+    {
+      "id": "circuit-design",
+      "split": "holdout",
+      "relevant": [],
+      "short": [
+        "电路设计仿真",
+        "電子回路シミュレーション",
+        "electronic circuit simulation"
+      ],
+      "long": [
+        "画电子电路图并模拟电压和电流",
+        "電子回路図を描いて電圧と電流の動きをシミュレーションする",
+        "Draw electronic circuit schematics and simulate voltage and current"
+      ]
+    }
+  ],
+  "regressions": [
+    {
+      "id": "encrypt.zh.file",
+      "group": "encrypt",
+      "split": "regression",
+      "language": "zh",
+      "length": "short",
+      "query": "文件加密",
+      "relevant": [
+        "ryoshin0830/fumi"
+      ]
+    }
+  ],
+  "requiredRegressionIds": [
+    "encrypt.zh.short",
+    "encrypt.zh.file"
+  ]
+}
