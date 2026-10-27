@@ -364,6 +364,7 @@ async function fakeGitHub() {
     { nameWithOwner: 'alice/zebra', description: 'remote only', viewerPermission: 'ADMIN', pushedAt: '2026-10-02T00:00:00Z', r1: { text: 'zebra readme' }, r2: null, r3: null },
   ];
   const server = createServer((req, res) => {
+    server.auth.add(req.headers.authorization);
     if (server.fail) { res.statusCode = 401; res.end(); return; }
     let body = '';
     req.on('data', (c) => { body += c; });
@@ -386,6 +387,7 @@ async function fakeGitHub() {
       res.end(JSON.stringify({ data: { repository } }));
     });
   });
+  server.auth = new Set(); // every token that reached GitHub
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { server, url: `http://127.0.0.1:${server.address().port}/graphql` };
 }
@@ -413,7 +415,7 @@ test('--index also stores repositories you can reach but have not cloned', async
   const cache = tempCache();
   const gh = await fakeGitHub();
   try {
-    const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' });
+    const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e', GH_HOST: 'git.example.com' });
     assert.equal(r.status, 0, r.stderr);
     assert.equal(JSON.parse(r.stdout).remote, 2, 'zebra (yours) and kiwi (your org)');
     const { repos } = JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8'));
@@ -430,6 +432,21 @@ test('--index also stores repositories you can reach but have not cloned', async
     // Repositories you only see as an org member: name and description, no README or issues.
     assert.deepEqual([repos['github.com/org/kiwi'].description, repos['github.com/org/kiwi'].readme, repos['github.com/org/kiwi'].lite], ['org repo', '', true]);
     assert.equal(repos['github.com/alice/zebra'].lite, undefined, 'your own repository keeps its README');
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('--index sends GH_ENTERPRISE_TOKEN to GH_HOST only, as gh does', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' };
+  try {
+    await runAsync(['--index', '--json'], { ...env, GH_HOST: 'ghe.example.com' }); // cherry is on git.example.com
+    assert.equal(gh.server.auth.has('bearer e'), false, 'a host other than GH_HOST got the enterprise token');
+    await runAsync(['--index', '--json'], { ...env, GH_HOST: 'git.example.com' });
+    assert.equal(gh.server.auth.has('bearer e'), true);
   } finally {
     gh.server.close();
     rmSync(cache, { recursive: true, force: true });
@@ -471,7 +488,7 @@ test('--json finds a clone by an issue, and says which issue', async () => {
   const cache = tempCache();
   const gh = await fakeGitHub();
   try {
-    await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' });
+    await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e', GH_HOST: 'git.example.com' });
     const r = run(['--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } });
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual([JSON.parse(r.stdout).path, JSON.parse(r.stdout).issue], [REPOS[0], 7]);
@@ -487,7 +504,7 @@ test('--json never picks a repository that is not cloned, and says how to clone 
   const cache = tempCache();
   const gh = await fakeGitHub();
   try {
-    await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' });
+    await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e', GH_HOST: 'git.example.com' });
     const r = run(['--json', 'zebra'], { env: { GHQCD_CACHE_DIR: cache } });
     assert.equal(r.status, 2);
     const err = jsonLine(r.stderr).error;
@@ -511,7 +528,7 @@ test('--json without any index still ranks clones by name, and starts no indexin
 test('--index stores issues of writable repos and keeps them when the token fails', async () => {
   const cache = tempCache();
   const gh = await fakeGitHub();
-  const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' };
+  const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e', GH_HOST: 'git.example.com' };
   try {
     const idx = await runAsync(['--index', '--json'], env);
     assert.equal(idx.status, 0, idx.stderr);

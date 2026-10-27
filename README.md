@@ -169,7 +169,7 @@ An interrupted run resumes where it stopped. `ghqcd --index` does the same in
 the foreground. Only one index run happens at a time.
 
 The index reads, through the GitHub API (`GH_TOKEN` / `GITHUB_TOKEN`,
-`GH_ENTERPRISE_TOKEN` for other hosts, or `gh auth token`):
+`GH_ENTERPRISE_TOKEN` for the `GH_HOST` host only, or `gh auth token`):
 
 - **your repositories** (owned or shared with you): description, README, and
   the 100 most recently updated issues of those you can push to;
