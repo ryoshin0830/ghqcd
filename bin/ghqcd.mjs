@@ -1,8 +1,12 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { request } from 'node:http';
+import { setPriority } from 'node:os';
+import { Worker } from 'node:worker_threads';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Buffer } from 'node:buffer';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // Read from package.json rather than a hand-maintained constant: `npm version`
@@ -24,8 +28,10 @@ USAGE
 OPTIONS
   --init <shell>     print shell integration for zsh | bash | fish, then exit
   --cmd <name>       function name emitted by --init (default: ${PKG})
-  --query <q>        initial fzf query (same as the positional argument)
-  --list             print every candidate instead of picking one
+  --query <q>        initial query (same as the positional argument)
+  --list             print every cloned repository instead of picking one
+  --index            refresh the search index now (the window also does it
+                     by itself, in the background, once a day)
   --json             stdout = 1-line JSON, never opens the fzf UI
   --quiet            stdout = path only (this is what the shell function uses)
   --no-color         disable ANSI colors (also respects NO_COLOR env)
@@ -33,11 +39,26 @@ OPTIONS
   -V, --version      show version
 
 EXAMPLES
-  ${PKG}                        fzf over every ghq repository
-  ${PKG} alchemy                fzf pre-filtered; auto-picks a unique match
+  ${PKG}                        search every repository: cloned, and on GitHub
+  ${PKG} alchemy                lands at once on a unique match, else searches
   ${PKG} --list                 every repository path, one per line
   ${PKG} --json alchemy         machine-readable best match
   ${PKG} --quiet alchemy        path only — \`cd "$(${PKG} --quiet alchemy)"\`
+  ${PKG} "把长网址缩短"           also finds what a README or issue means, any language
+
+THE SEARCH WINDOW
+  One window searches the repositories you have cloned and the ones you can
+  reach on GitHub (and GitHub Enterprise hosts ghq knows): by name first, then
+  description, README, issues, meaning (any language) and code. Enter goes to
+  the repository, cloning it first if needed; ctrl-o opens it on GitHub;
+  ctrl-r refreshes the index. The bar at the bottom shows indexing progress.
+
+  The index lives under ${'$'}XDG_CACHE_HOME/ghqcd (default ~/.cache/ghqcd),
+  readable only by you. It holds README and issue text read through the
+  GitHub API (GH_TOKEN / GITHUB_TOKEN, or \`gh auth token\`), and for meaning
+  search a pinned WebAssembly runtime and model (Qwen3-Embedding-0.6B fp16,
+  about 1.2 GB, downloaded once). GHQCD_SEMANTIC=0 leaves the model out.
+  Code queries for repositories that are not cloned go to GitHub's code search.
 
 WHY --init
   A child process cannot change its parent shell's directory, so \`npx ${PKG}\`
@@ -62,7 +83,7 @@ OUTPUT
 
 EXIT CODES
   0    success
-  1    validation / generic failure (E_VALIDATION, E_GHQ)
+  1    validation / generic failure (E_VALIDATION, E_GHQ, E_INDEX)
   2    no repository matched (E_NO_MATCH)
   3    non-interactive and the query was ambiguous or absent (E_AMBIGUOUS)
   127  ghq or fzf not installed (E_DEPS)
@@ -97,6 +118,10 @@ try {
       cmd: { type: 'string' },
       query: { type: 'string' },
       list: { type: 'boolean' },
+      index: { type: 'boolean' },
+      // fzf's reload and preview commands: clients of the window's query server.
+      'serve-query': { type: 'string' },
+      'serve-preview': { type: 'string' },
       json: { type: 'boolean' },
       quiet: { type: 'boolean' },
       'no-color': { type: 'boolean' },
@@ -107,6 +132,14 @@ try {
   }));
 } catch (err) {
   emitEarlyError(err.message);
+}
+
+if (values['serve-query'] != null || values['serve-preview'] != null) {
+  const { queryClient } = await import('../lib/serve.mjs');
+  await (values['serve-query'] != null
+    ? queryClient(values['serve-query'], { q: positionals.join(' ') })
+    : queryClient(values['serve-preview'], { preview: positionals[0] ?? '', meta: positionals[1] ?? '', q: positionals.slice(2).join(' ') }));
+  process.exit(0);
 }
 
 if (values.help) {
@@ -128,6 +161,8 @@ const ansi = (code) =>
   useColor ? (s) => `\x1b[${code}m${s}\x1b[0m` : (s) => String(s);
 const dim = ansi(2);
 const cyan = ansi(36);
+const magenta = ansi(35);
+const yellow = ansi(33);
 const green = ansi(32);
 const red = ansi(31);
 const bold = ansi(1);
@@ -152,6 +187,7 @@ const EXIT = {
   E_FZF: 1,
   E_NO_MATCH: 2,
   E_AMBIGUOUS: 3,
+  E_INDEX: 1,
   E_DEPS: 127,
   E_INTERRUPTED: 130,
 };
@@ -356,6 +392,10 @@ if (values.query != null && positionals.length > 0 && values.query !== positiona
 
 const query = values.query ?? positionals[0] ?? '';
 
+if (values.index && (query || values.list)) {
+  die('E_VALIDATION', '--index takes no query and only combines with --json');
+}
+
 // ── interactivity ────────────────────────────────────────────────────────────
 
 const stdinTTY = !!process.stdin.isTTY;
@@ -492,45 +532,10 @@ function listRepos() {
 
 // ── fzf ──────────────────────────────────────────────────────────────────────
 
-const PREVIEW = 'git -C {} log --oneline -10';
-
-// Interactive pick. fzf renders on /dev/tty and writes only the selection to
-// stdout, so capturing stdout here does not disturb the UI.
-function fzfPick(candidates) {
-  const args = [
-    '--height=40%',
-    '--layout=reverse',
-    '--border',
-    '--prompt=repo> ',
-    `--preview=${PREVIEW}`,
-  ];
-  if (query) {
-    // With a query, a single surviving candidate is unambiguous — take it
-    // rather than making the user press Enter on a one-item list.
-    args.push(`--query=${query}`, '--select-1', '--exit-0');
-  }
-  const r = spawnSync('fzf', args, {
-    input: candidates.join('\n') + '\n',
-    encoding: 'utf8',
-    stdio: ['pipe', 'pipe', 'inherit'],
-  });
-  if (r.error) die('E_FZF', `could not run fzf: ${r.error.message}`);
-  if (r.status === 130 || r.signal === 'SIGINT') die('E_INTERRUPTED', 'cancelled');
-  if (r.status === 1) {
-    die('E_NO_MATCH', query
-      ? `no repository matched '${query}'`
-      : 'no repository selected');
-  }
-  if (r.status !== 0) die('E_FZF', `fzf exited with status ${r.status}`);
-  const sel = (r.stdout ?? '').trim();
-  if (!sel) die('E_INTERRUPTED', 'cancelled');
-  return sel;
-}
-
 // Non-interactive scoring pass. `fzf --filter` prints ranked matches and never
 // opens a UI, so the same fuzzy semantics apply with or without a terminal.
-function fzfFilter(candidates, q) {
-  const r = spawnSync('fzf', ['--filter', q], {
+function fzfFilter(candidates, q, extra = []) {
+  const r = spawnSync('fzf', ['--filter', q, ...extra], {
     input: candidates.join('\n') + '\n',
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -622,12 +627,414 @@ function copyToClipboard(text) {
   return true;
 }
 
+// ── search index (--index and the window) ────────────────────────────────────
+
+// Loaded on demand so the plain picker never pays for it.
+const searchIndex = () => import('../lib/search-index.mjs');
+const pathOf = (line) => line.split('\t')[0];
+
+// Output for --index (foreground, or the window's background run). All of it goes to stderr,
+// even under --quiet: the shell function adds that flag to every call.
+// On a terminal, progress is one line rewritten in place and the run ends in a
+// one-line receipt, so a refresh leaves one line of scrollback, not ten.
+// Anywhere else (a log, a screen reader) lines are appended, at most every 2 s.
+let liveLine = false;
+let lastAppend = 0;
+function fit(s, width) {
+  if (strWidth(s) <= width) return s;
+  let out = '';
+  for (const ch of s) {
+    if (strWidth(out + ch) > width - 1) break;
+    out += ch;
+  }
+  return `${out}…`;
+}
+function say(s) {
+  if (liveLine) stderr.write('\r\x1b[2K');
+  liveLine = false;
+  stderr.write(`${s}\n`);
+}
+function progress(s) {
+  if (stderr.isTTY) {
+    stderr.write(`\r\x1b[2K${dim(fit(s, (stderr.columns || 80) - 1))}`);
+    liveLine = true;
+  } else if (Date.now() - lastAppend > 2000) {
+    lastAppend = Date.now();
+    say(s);
+  }
+}
+
+// "2 h ago (10-26 18:56)", local time; the clock time is left out on request.
+function ago(at, clock = true) {
+  const min = (Date.now() - at) / 60000;
+  const rel = min < 1 ? 'just now' : min < 90 ? `${Math.round(min)} min ago`
+    : min < 36 * 60 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
+  return clock ? `${rel} (${new Date(at).toLocaleString('sv-SE').slice(5, 16)})` : rel;
+}
+
+// What a refresh roughly costs, from the parts the last runs measured. How many
+// READMEs and issues changed is unknown until GitHub has been asked, so the
+// long form adds that part as a rate; the progress line then gives the real ETA.
+function refreshCost(si, semantic, long) {
+  const s = si.readStatus();
+  if (!s.textSeconds) return '';
+  const quiet = `~${si.duration(s.textSeconds)}`;
+  if (!semantic || !s.secondsPerChunk || !long) return quiet;
+  return `${quiet} if nothing changed, else ~${si.duration(s.textSeconds + s.loadSeconds)} + ~${si.duration(s.secondsPerChunk)} per change`;
+}
+
+// Throws; the caller decides whether a failure ends the program.
+async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {}) {
+  const t0 = Date.now();
+  // The window's status bar reads this, at most twice a second.
+  let wrote = 0, hinted = !verbose;
+  const report = (s) => {
+    // Said once, and only to someone who can press ctrl-c: not to the window,
+    // whose indexer runs on in the background.
+    if (!hinted && s.startsWith('embedding') && / min left/.test(s)) { hinted = true; say(dim('ctrl-c stops; the next run resumes where it stopped')); }
+    progress(s);
+    if (Date.now() - wrote > 500) { wrote = Date.now(); si.writeProgress({ text: s }); }
+  };
+  const s = si.readStatus();
+  const at = semantic ? s.semanticAt : s.textAt;
+  const cost = refreshCost(si, semantic, true);
+  if (verbose) say(dim(`indexing ${repos.length} repositories${at ? ` · last indexed ${ago(at, false)}` : ''}${cost ? ` · ${cost}` : ''}`));
+  if (!verbose) progress(`indexing ${repos.length} repositories…`);
+  const release = si.lockIndex();
+  try {
+    const { index, stats } = await si.buildTextIndex(repos.map((p) => ({ path: p, slug: slugOf(p) })), { progress: report });
+    const res = { ...stats };
+    // tokenFor() sends it to GH_HOST only, so without GH_HOST it goes nowhere.
+    const ignored = (process.env.GH_ENTERPRISE_TOKEN || process.env.GITHUB_ENTERPRISE_TOKEN) && !process.env.GH_HOST
+      && 'GH_ENTERPRISE_TOKEN is ignored without GH_HOST: export GH_HOST=<your GHE host>';
+    if (verbose) {
+      say(dim(`  ${stats.readmes} READMEs, ${stats.github} repositories on GitHub, ${stats.issues} issues` +
+        (stats.skipped ? `, ${stats.skipped} skipped (no token for the host, not on GitHub, or no access)` : '')));
+      if (!stats.github && stats.skipped) say(dim('  for issues: set GH_TOKEN, or log in with `gh auth login`'));
+      if (ignored) say(dim(`  ${ignored}`));
+    }
+    if (stats.errors) {
+      say(`${PKG}: warning: GitHub could not be read for ${stats.errors} repositories; their last issues are kept (first: ${stats.firstError})`);
+    }
+    if (semantic) Object.assign(res, await si.buildVectors(index, { log: (m) => { say(dim(m)); report(m); }, progress: report }));
+    const took = si.duration((Date.now() - t0) / 1000);
+    const receipt = `indexed ${repos.length + stats.remote} repositories in ${took}` +
+      (semantic ? ` · ${res.changed} ${res.changed === 1 ? 'README or issue' : 'READMEs or issues'} changed` : ` · ${stats.issues} issues`);
+    say(`${green('✓')} ${receipt}`);
+    si.writeProgress({
+      done: true, text: stats.errors ? `GitHub could not be read: ${stats.firstError}` : receipt, failed: !stats.github && stats.errors > 0,
+      // The window's footer is the only place a background run can say this.
+      ...((!stats.github && stats.skipped && { hint: 'no GitHub token: run gh auth login, then ctrl-r' }) || (ignored && { hint: ignored })),
+    });
+    return res;
+  } catch (err) {
+    si.writeProgress({ done: true, failed: true, text: err.message });
+    throw err;
+  } finally {
+    if (liveLine) stderr.write('\r\x1b[2K'); // a failure's message starts on a clean line
+    liveLine = false;
+    release();
+  }
+}
+
+async function runIndex(repos, slugOf) {
+  const si = await searchIndex();
+  const t0 = Date.now();
+  let res;
+  try {
+    res = await refreshIndex(si, repos, slugOf, SEMANTIC, { verbose: true });
+  } catch (err) {
+    die(err.code ?? 'E_INDEX', err.message);
+  }
+  res.seconds = Math.round((Date.now() - t0) / 1000);
+  res.cache = si.cacheDir();
+  if (isJson) process.stdout.write(JSON.stringify({ schemaVersion: SCHEMA_VERSION, ...res }) + '\n');
+  else say(dim(`  cache: ${res.cache}`));
+}
+
+// Meaning search is on by default; GHQCD_SEMANTIC=0 skips the model (1.2 GB) and the vectors.
+const SEMANTIC = process.env.GHQCD_SEMANTIC !== '0';
+
+// Nothing refreshes the index behind the user's back (it reads private issues).
+// The picker's header shows its age; without a picker, an old one is pointed out.
+const STALE_DAYS = 7;
+function staleHint(at, cmd) {
+  const days = (Date.now() - at) / 864e5;
+  if (at && days > STALE_DAYS) say(dim(`${PKG}: the index is ${Math.floor(days)} days old; \`${cmd}\` refreshes it`));
+}
+
+// ── the search window ────────────────────────────────────────────────────────
+// One fzf window over every repository you can reach, cloned or not. fzf runs
+// with --disabled: the ranking is ours (lib/rank.mjs), served from this process
+// over a socket (lib/serve.mjs) so the index and the model stay in memory.
+
+const BIN = fileURLToPath(import.meta.url);
+const sh = (s) => `'${String(s).replaceAll("'", "'\\''")}'`;
+const CLIENT = `${sh(process.execPath)} ${sh(BIN)}`;
+
+// fzf with --footer and a Unix-socket --listen can show live progress; older
+// fzf (Debian's 0.38) gets the status once, as a header. Probed rather than
+// parsed from --version: fzf exits 2 at once on an option it does not know.
+function liveFzf(dir) {
+  if (process.platform === 'win32') return false;
+  const probe = join(dir, `probe-${process.pid}.sock`);
+  const ok = spawnSync('fzf', ['--filter=x', '--footer=x', `--listen=${probe}`], { input: 'x\n', stdio: ['pipe', 'ignore', 'ignore'] }).status === 0;
+  rmSync(probe, { force: true });
+  return ok;
+}
+
+// The index refreshes itself: a detached, low-priority `ghqcd --index` that
+// outlives the window if it has to and reports through progress.json. The
+// lock in --index keeps it to one at a time.
+function startIndexer() {
+  const child = spawn(process.execPath, [BIN, '--index'], { detached: true, stdio: 'ignore' });
+  try { setPriority(child.pid, 19); } catch { /* not allowed here: run at normal priority */ }
+  child.unref();
+}
+const running = (si) => {
+  const p = si.readProgress();
+  return p && !p.done && si.alive(p.pid) ? p : null;
+};
+const stale = (si) => si.needsRefresh(si.readStatus(), si.readProgress(), Date.now(), SEMANTIC);
+
+// The status bar: what the index is doing, else how old it is and the keys.
+function statusLine(si) {
+  const p = si.readProgress();
+  // The bar sits under the list: half the width while the preview shows.
+  const cols = stderr.columns || 80;
+  const width = (cols >= 100 ? Math.floor(cols / 2) : cols) - 4;
+  if (running(si)) return fit(`indexing in the background: ${p.text}`, width);
+  if (p?.failed) return fit(`! indexing failed: ${p.text} · ctrl-r retries`, width);
+  const at = si.readStatus().textAt;
+  return fit([p?.hint ?? (at ? `indexed ${ago(at)}` : 'ctrl-r also searches GitHub: your repositories, READMEs and issues'),
+    'enter go', 'ctrl-o open on GitHub', 'ctrl-r refresh'].join(' · '), width);
+}
+
+let matchLabel, matchContext; // from lib/rank.mjs, loaded with the window
+
+// Bold the query's words in a line, unless color is off.
+function mark(text, terms) {
+  if (!useColor || !terms.length) return text;
+  const re = new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+  return text.replace(re, (m) => `\x1b[1m${m}\x1b[22m`);
+}
+
+// One result line after the key: `<meta>\t<shown text>`. meta is
+// `<label>|<#issue or file:line>|<similarity>`, for ctrl-o and the preview; fzf
+// shows only the text. The text starts with a label column saying what matched
+// (lib/rank.mjs matchLabel): the words, in cyan; `~`, by meaning, in magenta;
+// code, in yellow. The label is the signal; color only repeats it.
+const LABEL_WIDTH = 7;
+function display(hit, terms) {
+  const label = matchLabel(hit);
+  const tint = hit.via === 'meaning' ? magenta : hit.via === 'code' ? yellow : cyan;
+  const ref = hit.loc ?? (hit.number ? `#${hit.number}` : '');
+  // Found by its name or path: the description is shown, dim, as context only.
+  const text = ['name', 'name*', 'path'].includes(label) ? dim(flatText(hit.description))
+    : mark(flatText(`${hit.via === 'meaning' && hit.number ? `#${hit.number} ` : ''}${hit.snippet ?? hit.description ?? ''}`), terms);
+  const score = hit.via === 'meaning' ? hit.score?.toFixed(2) : '';
+  return `${label}|${ref}|${score ?? ''}\t${tint(label.padEnd(LABEL_WIDTH))} ${hit.slug}${hit.cloned ? '' : dim(' · not cloned')}  ${text}`;
+}
+const flatText = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+
+// No query yet: everything, clones first, then the most recently pushed.
+const browse = (docs) => [...docs]
+  .sort((a, b) => b.cloned - a.cloned || (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''))
+  .map((d) => `${d.key}\t||\t${' '.repeat(LABEL_WIDTH)} ${d.slug}${d.cloned ? '' : dim(' · not cloned')}  ${dim(flatText(d.description))}`);
+
+const WHAT = { name: 'the name', 'name*': 'the name (its letters in order)', path: 'the path', desc: 'the description', readme: 'the README', '~readme': 'the README' };
+
+// The right pane: what matched and how, then the matched lines in place.
+function preview(docs, key, meta, q) {
+  const d = docs.find((x) => x.key === key);
+  if (!d) return [];
+  const [label = '', ref = '', score = ''] = meta.split('|');
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const out = [bold(d.slug) + (d.cloned ? '' : dim('  not cloned: enter clones it'))];
+  const what = label.endsWith('issue') ? `issue ${ref}` : label === 'code' ? `code in ${ref}` : WHAT[label];
+  const how = label.startsWith('~') ? `by meaning${score ? ` (similarity ${score})` : ''}` : 'by the words typed';
+  if (what) out.push(`${dim('matched')} ${what} ${dim(how)}`, '');
+  const passage = (text, head) => {
+    const at = matchContext(text, terms);
+    return (at.length ? at : String(text ?? '').split('\n').slice(0, head)).map((l) => mark(l, terms));
+  };
+  const issue = ref.startsWith('#') && d.issues?.find((i) => i.number === Number(ref.slice(1)));
+  if (issue) out.push(bold(`#${issue.number} ${issue.title}`), ...passage(issue.body, 12));
+  else if (label === 'code' && d.cloned) {
+    const [file] = ref.split(':');
+    const grep = spawnSync('git', ['-C', d.key, 'grep', '-h', '-n', '-i', '-F', '-C', '3', '-e', q, '--', file], { encoding: 'utf8' });
+    out.push(...(grep.stdout ?? '').split('\n--\n')[0].split('\n').map((l) => mark(l, terms)));
+  } else if (label === 'code') out.push(dim('ctrl-o opens the file on GitHub'));
+  else if (label.endsWith('readme') && d.readme) out.push(...passage(d.readme, 12));
+  if (d.description && label !== 'desc') out.push('', flatText(d.description));
+  else if (label === 'desc') out.push(mark(flatText(d.description), terms));
+  if (d.cloned) {
+    const log = spawnSync('git', ['-C', d.key, 'log', '--oneline', '-5'], { encoding: 'utf8' }).stdout?.trim();
+    if (log) out.push('', dim('recent commits'), log);
+  }
+  return out;
+}
+
+function openUrl(url) {
+  const [cmd, args] = process.platform === 'darwin' ? ['open', [url]]
+    : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : ['xdg-open', [url]];
+  const child = spawn(cmd, args, { detached: true, stdio: 'ignore' });
+  child.on('error', () => say(url));
+  child.unref();
+}
+function urlOf(doc, meta) {
+  const base = `https://${doc.slug}`;
+  const [, ref = ''] = meta.split('|');
+  if (ref.startsWith('#')) return `${base}/issues/${ref.slice(1)}`;
+  const [file, line] = ref.split(':');
+  return file ? `${base}/blob/HEAD/${file}${line ? `#L${line}` : ''}` : base;
+}
+
+function clone(slug) {
+  say(dim(`cloning ${slug}…`));
+  // ghq and git talk on stderr; stdout stays ours (I1).
+  const r = spawnSync('ghq', ['get', `https://${slug}`], { stdio: ['ignore', 2, 2] });
+  if (r.signal === 'SIGINT') die('E_INTERRUPTED', 'cancelled');
+  if (r.status !== 0) die('E_GHQ', `ghq get failed for https://${slug}`);
+  const path = spawnSync('ghq', ['list', '-e', '-p', slug], { encoding: 'utf8' }).stdout?.trim().split('\n')[0];
+  if (!path) die('E_GHQ', `ghq get reported success, but no clone of ${slug} can be found`);
+  say(`${green('✓')} cloned ${slug}`);
+  return path;
+}
+
+async function searchWindow(si, repos, slugOf) {
+  const { startServer, streamResults, socketPath } = await import('../lib/serve.mjs');
+  const dir = si.privateDir(si.cacheDir());
+  let docs = si.readDocs(repos, slugOf);
+  let seen = JSON.stringify(si.readStatus());
+  const meaning = meaningWorker();
+  const { codeSearch } = await import('../lib/code.mjs');
+  const tokens = new Map();
+  const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
+  // Every answer starts with one header line (fzf --header-lines=1): fzf keeps
+  // the old list until a line arrives, so a query with no name hits used to
+  // leave the previous results up for seconds while meaning and code ran.
+  const stream = (q, write, signal) => {
+    const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) {
+      write(`\t||\t${dim('every repository, clones first · type to search')}`);
+      return browse(docs).forEach(write);
+    }
+    // A legend for the label column, and what is still on its way.
+    write(`\t||\t${dim(`“${q}” · name path desc readme issue code: the words typed${SEMANTIC ? ' · ~: by meaning, follows' : ''}`)}`);
+    return streamResults({
+      query: q, docs, write, signal, display: (h) => display(h, terms),
+      code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
+      meaning,
+    });
+  };
+  const server = await startServer(socketPath(dir), async (p, write, signal) => {
+    if (p.preview != null) return preview(docs, p.preview, p.meta ?? '', p.q ?? '').forEach(write);
+    return stream(String(p.q ?? ''), write, signal);
+  });
+  const socket = socketPath(dir);
+  if (stale(si) && !running(si)) startIndexer();
+  const live = liveFzf(dir);
+  const fzfSock = join(dir, `fzf-${process.pid}.sock`);
+  // On every way out, Esc included (die() exits at once): sockets go, and a
+  // background index run is mentioned so a first 1.2 GB download is not a secret.
+  process.on('exit', () => {
+    server.close();
+    rmSync(fzfSock, { force: true });
+    const p = running(si);
+    if (p) stderr.write(`${dim(`${PKG}: indexing continues in the background (${p.text}); the next window shows its progress`)}\n`);
+  });
+  // An index run that finished since the list was last read: search the new index.
+  const fresh = () => {
+    const s = JSON.stringify(si.readStatus());
+    if (s === seen) return false;
+    seen = s;
+    docs = si.readDocs(repos, slugOf);
+    return true;
+  };
+  const post = (action) => {
+    const req = request({ socketPath: fzfSock, method: 'POST', path: '/' });
+    req.on('error', () => {});
+    req.end(action);
+  };
+  let typed = query;
+  for (;;) {
+    fresh();
+    const status = statusLine(si);
+    const args = [
+      '--height=40%', '--layout=reverse', '--border', '--prompt=repo> ',
+      '--disabled', '--ansi', '--no-sort', '--delimiter=\t', '--with-nth=3..', '--no-hscroll',
+      '--print-query', '--expect=ctrl-o,ctrl-r', `--query=${typed}`,
+      `--bind=change:reload:${CLIENT} --serve-query ${sh(socket)} {q}`,
+      `--preview=${CLIENT} --serve-preview ${sh(socket)} {1} {2} {q}`,
+      '--preview-window=right,50%,wrap,border-left,<50(hidden)', '--min-height=14', '--header-lines=1',
+      ...(live ? [`--footer=${status}`, `--listen=${fzfSock}`] : [`--header=${status}`]),
+    ];
+    const fzf = spawn('fzf', args, { stdio: ['pipe', 'pipe', 'inherit'] });
+    const ac = new AbortController();
+    fzf.stdin.on('error', () => ac.abort());
+    // The first list streams in exactly like a reload.
+    Promise.resolve(stream(typed, (l) => fzf.stdin.write(`${l}\n`), ac.signal)).finally(() => fzf.stdin.end());
+    let shown = status;
+    const tick = live && setInterval(() => {
+      const now = statusLine(si);
+      if (now !== shown) post(`change-footer:${(shown = now)}`);
+      if (fresh()) post(`reload:${CLIENT} --serve-query ${sh(socket)} {q}`);
+    }, 500);
+    let out = '';
+    fzf.stdout.on('data', (d) => { out += d; });
+    const [code, signal] = await new Promise((r) => fzf.on('close', (c, s) => r([c, s])));
+    clearInterval(tick);
+    ac.abort();
+    if (code === 130 || signal === 'SIGINT') die('E_INTERRUPTED', 'cancelled');
+    // fzf exits 1 on an empty list but still reports the key: ctrl-r there is
+    // exactly "I just made it, find it".
+    const [q = '', key = '', line = ''] = out.replace(/\n$/, '').split('\n');
+    const [k, meta = ''] = line.split('\t');
+    const doc = docs.find((d) => d.key === k);
+    typed = q;
+    if ((code === 0 || code === 1) && key === 'ctrl-r') {
+      if (live || running(si)) { if (!running(si)) startIndexer(); continue; }
+      // Old fzf cannot show a background run, so refresh here, then reopen.
+      try { await refreshIndex(si, repos, slugOf, SEMANTIC); } catch (err) { say(`${red(`${PKG}:`)} refresh failed: ${err.message}`); }
+      continue;
+    }
+    if ((code === 0 || code === 1) && key === 'ctrl-o') { if (doc) openUrl(urlOf(doc, meta)); continue; }
+    if (code === 1) die('E_NO_MATCH', 'no repository selected');
+    if (code !== 0) die('E_FZF', `fzf exited with status ${code}`);
+    if (!doc) die('E_NO_MATCH', 'no repository selected');
+    return doc;
+  }
+}
+
+// The window's meaning search: on a worker thread, 250 ms after typing stops,
+// and only for the query still on screen.
+function meaningWorker() {
+  if (!SEMANTIC) return async () => [];
+  const worker = new Worker(new URL('../lib/meaning-worker.mjs', import.meta.url), { workerData: { env: process.env } });
+  worker.unref();
+  const waiting = new Map();
+  let n = 0;
+  worker.on('message', ({ id, hits }) => { waiting.get(id)?.(hits); waiting.delete(id); });
+  worker.on('error', () => { for (const done of waiting.values()) done([]); waiting.clear(); });
+  return async (q, signal) => {
+    const { afterPause } = await import('../lib/serve.mjs');
+    if (q.trim().length < 2 || !(await afterPause(250, signal))) return [];
+    const id = ++n;
+    return new Promise((resolve) => {
+      waiting.set(id, resolve);
+      signal.addEventListener('abort', () => { waiting.delete(id); resolve([]); }, { once: true });
+      worker.postMessage({ id, query: q });
+    });
+  };
+}
+
 // ── main flow ────────────────────────────────────────────────────────────────
 
 async function main() {
   await ensureTool('git');
   await ensureTool('ghq');
-  await ensureTool('fzf');
+  if (!values.index) await ensureTool('fzf');
 
   const roots = ghqRoots();
   const root = roots[roots.length - 1] ?? ''; // the primary, for the `root` field
@@ -640,6 +1047,8 @@ async function main() {
   if (repos.length === 0) {
     die('E_NO_MATCH', 'ghq has no repositories. Clone one with `ghq get <url>` first.');
   }
+
+  if (values.index) return runIndex(repos, slugOf);
 
   // ── --list ────────────────────────────────────────────────────────────────
   if (values.list) {
@@ -661,20 +1070,45 @@ async function main() {
   // ── pick one ──────────────────────────────────────────────────────────────
   let selected;
   let matches;
+  let extra = {};
+  if (isNonInteractive && !query) {
+    die('E_AMBIGUOUS',
+      'no terminal for the fzf UI. Pass a query to pick non-interactively, ' +
+      'or use --list to see every candidate.');
+  }
+  const si = await searchIndex();
+  const rank = await import('../lib/rank.mjs');
+  ({ matchLabel, matchContext } = rank);
+  const docs = query ? si.readDocs(repos, slugOf) : [];
+  // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
+  // way fzf did before the index existed, so those queries still land. A
+  // subsequence of a name not cloned is no word: 2,000 org names have `alweb`.
+  const fuzzy = () => (rank.keywordRank(docs, query, { limit: Infinity }).some((h) => h.cloned || h.field !== 'fuzzy')
+    ? [] : fzfFilter(repos, query));
   if (isNonInteractive) {
-    if (!query) {
-      die('E_AMBIGUOUS',
-        'no terminal for the fzf UI. Pass a query to pick non-interactively, ' +
-        'or use --list to see every candidate.');
+    // Scripts and agents get a clone, always: `path` must exist (I7).
+    // Rank the clones alone: hundreds of org repositories must not crowd them out.
+    let hits = rank.keywordRank(docs.filter((d) => d.cloned), query);
+    if (hits.length === 0) hits = fuzzy().map((key) => ({ key }));
+    if (hits.length === 0) {
+      const [far] = rank.keywordRank(docs.filter((d) => !d.cloned), query, { limit: 1 });
+      die('E_NO_MATCH', far
+        ? `no clone matched '${query}'; ${far.slug} is on GitHub: ghq get https://${far.slug}`
+        : `no repository matched '${query}'`);
     }
-    const hits = fzfFilter(repos, query);
-    if (hits.length === 0) die('E_NO_MATCH', `no repository matched '${query}'`);
-    // fzf --filter is score-ordered, so the head is the best match. `matches`
-    // travels in the payload so a caller can notice the choice was not unique.
-    selected = hits[0];
+    if (si.readTextIndex()) staleHint(si.readStatus().textAt, `${PKG} --index`);
+    // Best first. `matches` travels in the payload so a caller can notice the
+    // choice was not unique.
+    selected = hits[0].key;
     matches = hits.length;
+    if (hits[0].field === 'issue') extra = { issue: hits[0].number };
   } else {
-    selected = fzfPick(repos);
+    const fuzzyOne = () => {
+      const [only, ...more] = fuzzy();
+      return only && !more.length ? docs.find((d) => d.key === only) : null;
+    };
+    const doc = (query && (rank.landing(docs, query) ?? fuzzyOne())) || await searchWindow(si, repos, slugOf);
+    selected = doc.cloned ? doc.key : clone(doc.slug);
     matches = 1;
   }
 
@@ -686,6 +1120,7 @@ async function main() {
       slug: slugOf(selected),
       root,
       matches,
+      ...extra,
     }) + '\n');
     return;
   }
@@ -713,7 +1148,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().then(() => {
+  // The WebAssembly runtime keeps worker threads alive after the last query or
+  // index run; exit once stdout has drained.
+  process.stdout.write('', () => process.exit(process.exitCode ?? 0));
+}).catch((err) => {
   disengageRawMode();
   restoreCursor();
   if (isJson) {

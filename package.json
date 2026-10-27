@@ -1,6 +1,6 @@
 {
   "name": "ghqcd",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Pick a ghq repository with fzf and cd into it.",
   "type": "module",
   "bin": {
@@ -11,6 +11,7 @@
   },
   "files": [
     "bin",
+    "lib",
     "LICENSE",
     "README.md"
   ],

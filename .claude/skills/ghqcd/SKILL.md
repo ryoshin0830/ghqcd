@@ -47,12 +47,32 @@ If `ghqcd` is on PATH:
 ghqcd --json <query>
 ```
 
-Otherwise (pin to `^0.1`, NOT `@latest`, so a future major bump does not
+Otherwise (pin to `^0.2`, NOT `@latest`, so a future major bump does not
 silently break the flow):
 
 ```bash
-npx -y ghqcd@^0.1 --json <query>
+npx -y ghqcd@^0.2 --json <query>
 ```
+
+`--json` ranks clones by where the words match: name, then description, then
+README, then issues (once an index exists). When no word matches any
+repository, it falls back to fzf's fuzzy match on the clone paths (`ali/web`),
+as 0.1 did. So a word from what a repository *does*, or from an issue the user
+remembers, also works:
+
+```bash
+ghqcd --json "upload stalls"
+```
+
+The payload adds `"issue": <number>` when an issue matched rather than the
+name. Meaning search (any language) and code search exist only in the
+interactive window, not in `--json`.
+
+`--json` only ever returns a clone, so `path` always exists. When the best match
+is a repository that is not cloned, it exits 2 (`E_NO_MATCH`) and the message
+names the `ghq get https://…` command: offer to run it. It never starts an index
+run; do not run `ghqcd --index` yourself unasked — it reads private repositories
+and issues through the GitHub API and, the first time, downloads a 1.2 GB model.
 
 To enumerate instead of picking:
 
@@ -107,6 +127,7 @@ best-guess path can run commands in the wrong repository.
 | `E_VALIDATION`  | 1    | flag conflict or extra positional                |
 | `E_GHQ`         | 1    | `ghq list -p` failed                             |
 | `E_FZF`         | 1    | fzf could not be run                             |
+| `E_INDEX`       | 1    | `--index` failed, or another one is running      |
 | `E_NO_MATCH`    | 2    | no repositories, or the query matched none       |
 | `E_AMBIGUOUS`   | 3    | called without a query and without a TTY         |
 | `E_DEPS`        | 127  | `ghq` or `fzf` missing                           |

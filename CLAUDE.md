@@ -14,12 +14,16 @@ of `README.md` instead.
 A small Node.js CLI (~600 lines, zero runtime dependencies) that:
 
 1. Runs `ghq list -p` for every cloned repository, and `ghq root` for slugs.
-2. Picks one — interactively via `fzf`, or non-interactively via `fzf --filter`.
+2. Picks one — interactively in one fzf search window over every repository
+   you can reach (cloned or on GitHub, see I12), or non-interactively among
+   clones (`--json`, `--quiet` without a TTY).
 3. Prints the chosen path: as a `cd "…"` box (default), one bare line
    (`--quiet`), or one line of JSON (`--json`).
 4. Emits a shell function on `--init <shell>` so the *shell* performs the `cd`.
 
-Single source of behavior: `bin/ghqcd.mjs`.
+Single source of behavior: `bin/ghqcd.mjs`. The search lives in `lib/`:
+`rank.mjs` (keyword ranking, pure), `search-index.mjs` (index, vectors),
+`serve.mjs` (the window's query server), `code.mjs` (code hits) — see I12.
 
 Sibling packages built to the same contract: `gwqcd`, `gwqpull`, `ghnew`.
 
@@ -130,7 +134,9 @@ Error (stderr, exit ≠ 0):
 ```
 
 `matches` exists so a caller can detect that it got the best-scoring candidate
-of several rather than a unique hit. Adding fields is fine; removing or
+of several rather than a unique hit. `issue` (a number) is added when an issue,
+not the name, matched. `path` is always a clone: `--json` never returns a
+repository that is not cloned (E_NO_MATCH names `ghq get` instead). Adding fields is fine; removing or
 renaming requires a `schemaVersion` bump.
 
 stderr *carries* the error line; it is not exclusively JSON. Node warnings and
@@ -145,6 +151,7 @@ select the line starting with `{`, never parse the whole stream.
 | 1    | `E_VALIDATION`  | flag conflict, extra positional, parseArgs error |
 | 1    | `E_GHQ`         | `ghq list -p` failed                             |
 | 1    | `E_FZF`         | fzf could not be run, or exited unexpectedly     |
+| 1    | `E_INDEX`       | `--index` failed, or another one is running      |
 | 2    | `E_NO_MATCH`    | no repositories, or the query matched none       |
 | 3    | `E_AMBIGUOUS`   | non-interactive with no query                    |
 | 127  | `E_DEPS`        | `ghq`/`fzf` missing and user declined install    |
@@ -184,12 +191,122 @@ the line people copy.
 latency and typosquat surface. The one prompt we need (`confirmYesNo`) is
 fifteen lines over the raw-mode keypress reader we already have.
 
+### I9b. The embedding runtime is installed, not depended on
+
+Meaning search needs an ONNX runtime and a tokenizer. They are **not** in
+`package.json`: the first `ghqcd --index` copies `lib/runtime/package.json` and
+its lockfile into the cache and runs `npm ci --ignore-scripts` there, then
+imports them by absolute path. So `npx ghqcd` stays dependency-free, nothing
+runs an install script, and every transitive version and integrity hash is
+pinned in `lib/runtime/package-lock.json`. Bump them by regenerating that
+lockfile, never with a range.
+
+The runtime is `onnxruntime-web` (WebAssembly), on purpose: `onnxruntime-node`
+is about four times faster, but ships ~300 MB of per-OS binaries, has a
+postinstall, and has no Intel-Mac build. Measurements are in
+`docs/research/semantic-search-plan.md`.
+
 ### I10. Raw mode cleanup
 
 `process.stdin.setRawMode(true)` is guarded by `stdin.isTTY`. Cleanup runs on
 `exit`, `SIGTERM`, `SIGHUP`, `uncaughtException`, and inside `try/finally`.
 Cursor restore (`\x1b[?25h`) is guarded by `stderr.isTTY` to prevent escape
 bytes leaking into files.
+
+### I12. One search window
+
+The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
+
+- **What it searches:** `readDocs()` — the index plus clones it has not seen.
+  The index has one entry per repository: a clone is keyed by its path,
+  anything else by `host/owner/name`; a clone is never listed twice, and a
+  clone deleted from disk is offered for cloning again.
+- **Ranking** (`lib/rank.mjs`, pure, unit-tested): every word must match; per
+  word the strongest field counts. Points: name exact 100 / prefix 90 /
+  substring 80, slug 60, name subsequence (one word only) 40, description 30,
+  README 20, issue title 12, issue body 8. Ties: clones first, then newest
+  push. The user fixed the order name > description > README > issues > code;
+  do not reorder. Subsequence runs on the name only: on the slug, `cli`
+  matched every repository through `github.com/alice`.
+- **Below keyword hits:** meaning hits (cosine ≥ 0.45, at most 20, issue
+  chunks −0.1), then code hits.
+- **Every line says what matched**, in a 7-column label (`matchLabel` in
+  `lib/rank.mjs`): `name`, `name*`, `path`, `desc`, `readme`, `issue`,
+  `~readme`, `~issue`, `code`; `~` alone means "by meaning". ASCII only: `≈`
+  is East Asian ambiguous width and shifts the column under ja locales. The
+  meta field is `<label>|<#issue or file:line>|<similarity>`; the preview gets
+  `{q}` and shows `matched … by …` and the matched lines (`matchContext`). `lib/serve.mjs` streams them in that
+  order; fzf shows lines as they arrive.
+- **Mechanics:** the parent keeps the index and the model in memory and answers
+  on a Unix socket in the 0700 cache dir. fzf runs `--disabled` with
+  `change:reload:<node> <bin> --serve-query <sock> {q}`; fzf kills the old
+  child on the next keystroke, and the server stops that query's work when its
+  client hangs up. `fzf --listen` is used only on a Unix socket (never a TCP
+  port: fzf 0.38 has no API key, and any local user could make it run
+  commands). The window's fzf is spawned asynchronously — the parent must keep
+  answering the socket while fzf runs.
+- **Meaning search runs on a worker thread** (`lib/meaning-worker.mjs`), 250 ms
+  after typing stops, only for the query still on screen. ORT's `run()` and
+  the model load never yield; on the main thread they held up every
+  keystroke's name hits. Each answer starts with one header line
+  (`--header-lines=1`): fzf keeps the old list until a line arrives.
+- **Fast path:** `ghqcd <q>` lands without the window on a unique clone matched
+  by name, slug or subsequence (what fzf matched on the path before) unless a
+  not-cloned repository matches its name better, else — only when no clone
+  matches in any field — on a unique not-cloned name match (cloned first):
+  `landing()` in `lib/rank.mjs`. Keep `ghqcd api`
+  landing. When no word matches any repository (`alweb`, `ali/web`),
+  `fzf --filter` on the clone paths decides, as before the index: a unique
+  path lands, and `--json` takes the best.
+- **Clone on Enter:** `ghq get https://<slug>` with ghq's output on stderr
+  (I1), then `ghq list -e -p <slug>`.
+- **The index refreshes itself:** the window starts a detached, nice-19
+  `ghqcd --index` when the index is missing or a day old (or vectors are), and
+  never from `--json` / `--list` / no-TTY runs. `--index` writes
+  `progress.json`; the window polls it every 0.5 s and updates the footer with
+  `change-footer` over `--listen=<cache>/fzf-<pid>.sock`, and `reload`s when
+  `status.json` changes. An fzf without `--footer` + Unix-socket `--listen`
+  (probed with `fzf --filter`, 27 ms) gets the status once as a header.
+- **Listings:** per host, your repositories (owned / shared) with README,
+  issues (writable only, 100 newest) and vectors; everything your
+  organizations share with name, description and last push only (`lite`; one
+  GHE host had 2,044, and READMEs for all took minutes and hours to embed).
+  GraphQL calls time out after 30 s.
+- **Private:** the cache holds issue text from private repositories. The
+  directory is 0700 and every file 0600, written atomically. Never log issue
+  text. Code queries for repositories that are not cloned go to GitHub's code
+  search, scoped to the user, after 0.7 s of no typing, at most 10 a minute per
+  host; that is the only query text that leaves the machine.
+- **Meaning search is on by default** (the user's decision). `GHQCD_SEMANTIC=0`
+  skips the runtime, the 1.2 GB model and the vectors; tests set it.
+- The model is pinned by revision and SHA-256 (`MODEL` in
+  `lib/search-index.mjs`). Use the **fp16** export: it matches the reference
+  FP32 model exactly, while the int8 export drifted (cosine median 0.835) and
+  lost about a tenth of the correct answers. Changing the model changes
+  `MODEL.key`, which keys the vector files, so old vectors are never mixed in.
+- One chunk per issue (title + start of body). All chunks made 12,765 chunks
+  from 1,571 real issues, a 3.5-hour first pass.
+- A refresh is incremental twice over: each README / issue text is hashed
+  before chunking and reuses the last chunk list when unchanged; chunks are
+  keyed by their own hash. The model loads only when some text changed. Bump
+  `CHUNKING` when `chunk()` or its input changes.
+- `buildVectors` yields to the event loop before every chunk (ORT's `run()`
+  never does, so SIGTERM was ignored for hours) and saves vector keys after
+  every chunk, so an interrupted run loses at most one.
+- Queries load ORT with one thread: on Node 20, starting the thread pool
+  sometimes spun forever inside session creation. Indexing keeps 8 threads.
+- `--index` takes `index.lock` (pid inside; a dead pid's lock is taken over).
+  Two runs appending to one vector file corrupted it.
+- A missing or rejected token keeps what the last run fetched, per repository
+  and per host; NOT_FOUND and gists are skips, not errors.
+- Progress for `--index` goes to stderr even under `--quiet`. On a TTY it is
+  one line rewritten in place, ended by one `✓` receipt.
+- Layout was checked at 150, 80x24 and 60 columns. The preview hides below 100
+  columns (fzf's `<N(hidden)` threshold is the preview's own width: `<50`).
+- Timers: never pass a negative delay to `setTimeout` — Node prints a warning
+  to stderr, into the window.
+- Tests put a failing `gh` shim on PATH, so the developer's own login never
+  reaches a test or the network.
 
 ### I11. Engines
 
@@ -271,11 +388,16 @@ The interactive fzf UI cannot be tested there. Run these by hand:
 
 | Scenario | Command | Expect |
 | --- | --- | --- |
-| Interactive pick | `ghqcd` | fzf opens, Enter lands the shell in the repo |
-| Unique query | `ghqcd <unique>` | lands with no keystroke (`--select-1`) |
+| Interactive pick | `ghqcd` | the window opens, Enter lands the shell in the repo |
+| Unique query | `ghqcd <unique>` | lands with no keystroke (fast path, I12) |
+| Not cloned | type a repo you have not cloned, Enter | ` · not cloned` on its line; `ghq get` runs, `✓ cloned`, shell lands there |
 | Cancel | `ghqcd`, press Esc | exit 130, shell stays put, no error line |
 | Ctrl-C | `ghqcd`, press Ctrl-C | exit 130, cursor restored |
-| Preview pane | `ghqcd` | right pane shows `git log --oneline -10` |
+| Preview pane | `ghqcd` at ≥ 100 columns | description, README or issue, recent commits |
+| Labels | type a sentence; type a function name | `~readme` / `~issue` lines, then `code` lines, below `name` / `desc` / `readme` / `issue`; preview says "matched … by …" |
+| Status bar | `ghqcd`, ctrl-r | footer streams the background index run; closing says it continues |
+| ctrl-o | `ghqcd`, ctrl-o | the repository (issue, file) opens in the browser; the window reopens |
+| Narrow window | `ghqcd` at 80x24 and 60 columns | preview hidden, 8 result rows, footer not cut |
 | npx one-shot | `npx ghqcd <q>` | box on terminal, `c` copies the cd command |
 | Stdout separation | `ghqcd api > out.txt` | box on terminal, `out.txt` empty |
 | No fzf | `PATH=/usr/bin ghqcd` | offers `brew install fzf`, exit 127 if declined |
@@ -291,12 +413,17 @@ drive the interactive fzf UI by piping keystrokes into `script` — fzf reads
 ## Where things live
 
 - `bin/ghqcd.mjs` — the entire CLI (ESM, top-level await OK).
+- `lib/rank.mjs` — keyword ranking (pure; I12).
+- `lib/search-index.mjs` — the index, vectors, meaning search (I12).
+- `lib/serve.mjs` — the window's query server and result order (I12).
+- `lib/code.mjs` — code hits: git grep and GitHub code search (I12).
+- `lib/runtime/` — the pinned embedding runtime installed into the cache (I9b).
 - `package.json` — `bin.ghqcd`, `engines.node`, `files`, `prepublishOnly`.
 - `.npmignore` — defense-in-depth complement to `files`.
 - `.claude/skills/ghqcd/SKILL.md` — agent USE contract. Changing it is a
   user-visible interface change; document it in the commit.
 - `README.md` — end-user docs.
-- `test/cli.test.mjs` — shim-based CLI tests.
+- `test/cli.test.mjs` — shim-based CLI tests; `test/{rank,docs,serve,code}.test.mjs` — the search parts.
 
 ---
 
@@ -305,6 +432,8 @@ drive the interactive fzf UI by piping keystrokes into `script` — fzf reads
 - **A `--zoxide`-style frecency database.** `ghq list` is the source of truth;
   ranking belongs to fzf.
 - **Caching `ghq list` output.** It is a directory walk of a few milliseconds,
-  and a stale cache after `ghq get` is worse than the walk.
+  and a stale cache after `ghq get` is worse than the walk. (The search index
+  is different: it needs the network. The window still takes the clones from
+  `ghq list` and merges them into the index, see `readDocs`.)
 - **A prompt library, a logger, or a clipboard package.** See I9.
 - **Telemetry / analytics.**
