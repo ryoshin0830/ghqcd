@@ -337,8 +337,8 @@ test('re-sourcing is idempotent even with a stale function defined', (t) => {
 // GitHub is a local fake: GHQCD_GITHUB_API points the GraphQL client at it.
 // The child runs asynchronously so this process can answer its requests.
 
-function runAsync(args, env) {
-  const shims = makeShims();
+function runAsync(args, env, shimOpts) {
+  const shims = makeShims(shimOpts);
   const childEnv = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', ...env };
   delete childEnv.FORCE_COLOR; // see run()
   const child = spawn(process.execPath, [BIN, ...args], { env: childEnv });
@@ -462,6 +462,24 @@ test('--json finds a matching clone even when hundreds of repositories that are 
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).path, REPOS[1]);
   rmSync(cache, { recursive: true, force: true });
+});
+
+test('--index keeps what it knew about a repository cloned since the last run', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't' };
+  const zebra = `${ROOT}/github.com/alice/zebra`;
+  try {
+    await runAsync(['--index', '--json'], env); // zebra is not cloned: keyed by its slug
+    gh.server.fail = true; // then it is cloned, and GitHub cannot be reached
+    const r = await runAsync(['--index', '--json'], env, { repos: [...REPOS, zebra] });
+    assert.equal(r.status, 0, r.stderr);
+    const { repos } = JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8'));
+    assert.deepEqual([repos[zebra].description, repos[zebra].issues.map((i) => i.number)], ['remote only', [2]]);
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
 });
 
 test('--index without a token tells the window how to add GitHub, and locks the cache dir down', async () => {
