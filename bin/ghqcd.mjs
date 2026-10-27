@@ -1077,8 +1077,10 @@ async function main() {
   ({ matchLabel, matchContext } = rank);
   const docs = query ? si.readDocs(repos, slugOf) : [];
   // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
-  // way fzf did before the index existed, so those queries still land.
-  const fuzzy = () => (rank.keywordRank(docs, query, { limit: 1 }).length ? [] : fzfFilter(repos, query));
+  // way fzf did before the index existed, so those queries still land. A
+  // subsequence of a name not cloned is no word: 2,000 org names have `alweb`.
+  const fuzzy = () => (rank.keywordRank(docs, query, { limit: Infinity }).some((h) => h.cloned || h.field !== 'fuzzy')
+    ? [] : fzfFilter(repos, query));
   if (isNonInteractive) {
     // Scripts and agents get a clone, always: `path` must exist (I7).
     // Rank the clones alone: hundreds of org repositories must not crowd them out.

@@ -151,8 +151,9 @@ hits are added below them as they arrive.
 | Esc | leave (exit 130, nothing printed) |
 
 `ghqcd <query>` still lands without the window when the match is clear: one
-clone by name, or else one repository that is not cloned by name, which is
-cloned first.
+clone by name, or else — when no clone matches at all — one repository that is
+not cloned by name, which is cloned first. A query no word matches (`ali/web`)
+is matched against the clone paths by fzf, as before.
 
 ### The index, and the status bar
 

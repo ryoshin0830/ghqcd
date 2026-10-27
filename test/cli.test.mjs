@@ -21,7 +21,7 @@ const REPOS = [
 // A shim dir that satisfies both `ghq` and `fzf` well enough for the
 // non-interactive paths. `fzf --filter` is a substring match — close enough
 // to fzf's ranking for tests that only assert which candidates survive.
-function makeShims({ repos = REPOS, ghqStatus = 0 } = {}) {
+function makeShims({ repos = REPOS, ghqStatus = 0, gh = '#!/bin/sh\nexit 1\n' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'ghqcd-shims-'));
   const write = (name, body) => {
     const p = join(dir, name);
@@ -53,7 +53,7 @@ echo "fzf: interactive UI invoked in a test" >&2
 exit 2
 `);
   // The developer's own `gh auth token` must not reach a test, nor the network.
-  write('gh', '#!/bin/sh\nexit 1\n');
+  write('gh', gh);
   return dir;
 }
 
@@ -438,12 +438,14 @@ test('--index also stores repositories you can reach but have not cloned', async
   }
 });
 
-test('--index sends GH_ENTERPRISE_TOKEN to GH_HOST only, as gh does', async () => {
+test('--index sends GH_ENTERPRISE_TOKEN to GH_HOST only, not to every host as gh would', async () => {
   const cache = tempCache();
   const gh = await fakeGitHub();
   const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' };
+  // Like the real one: `gh auth token --hostname <any host but github.com>` prints the enterprise token.
+  const realGh = { gh: '#!/bin/sh\nt="${GH_ENTERPRISE_TOKEN:-$GITHUB_ENTERPRISE_TOKEN}"\n[ -n "$t" ] || exit 1\necho "$t"\n' };
   try {
-    await runAsync(['--index', '--json'], { ...env, GH_HOST: 'ghe.example.com' }); // cherry is on git.example.com
+    await runAsync(['--index', '--json'], { ...env, GH_HOST: 'ghe.example.com' }, realGh); // cherry is on git.example.com
     assert.equal(gh.server.auth.has('bearer e'), false, 'a host other than GH_HOST got the enterprise token');
     await runAsync(['--index', '--json'], { ...env, GH_HOST: 'git.example.com' });
     assert.equal(gh.server.auth.has('bearer e'), true);
@@ -539,6 +541,17 @@ test('--json falls back to fzf on the path when no word matches, as before the i
   const r = run(['--json', 'test-root/github.com/alice/ap']);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).path, REPOS[0]);
+});
+
+test('--json falls back to fzf on the path even when the query is a subsequence of a name not cloned', () => {
+  // `alweb` is a subsequence of many of the 2,000 org names; that is not a word match.
+  const cache = tempCache();
+  const repos = { 'github.com/org/tests-for-root': { slug: 'github.com/org/tests-for-root', name: 'tests-for-root', cloned: false, lite: true, issues: [] } };
+  writeFileSync(join(cache, 'index.json'), JSON.stringify({ repos }));
+  const r = run(['--json', 'test-root'], { env: { GHQCD_CACHE_DIR: cache } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).path, REPOS[0]);
+  rmSync(cache, { recursive: true, force: true });
 });
 
 test('--json without any index still ranks clones by name, and starts no indexing', () => {
