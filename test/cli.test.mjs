@@ -370,7 +370,9 @@ async function fakeGitHub() {
     req.on('end', () => {
       const { query, variables } = JSON.parse(body);
       if (query.includes('viewer{')) { // not viewerPermission
-        const nodes = req.headers.authorization === 'bearer t' ? viewer : [];
+        // The org-wide listing (ownerAffiliations) adds a repository you only see as a member.
+        const all = query.includes('ownerAffiliations') ? [...viewer, { nameWithOwner: 'org/kiwi', description: 'org repo', pushedAt: '2026-09-01T00:00:00Z' }] : viewer;
+        const nodes = req.headers.authorization === 'bearer t' ? all : [];
         res.setHeader('content-type', 'application/json');
         res.end(JSON.stringify({ data: { viewer: { repositories: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } }));
         return;
@@ -411,7 +413,7 @@ test('--index also stores repositories you can reach but have not cloned', async
   try {
     const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' });
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(JSON.parse(r.stdout).remote, 1);
+    assert.equal(JSON.parse(r.stdout).remote, 2, 'zebra (yours) and kiwi (your org)');
     const { repos } = JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8'));
     const zebra = repos['github.com/alice/zebra'];
     assert.equal(zebra.cloned, false);
@@ -420,6 +422,9 @@ test('--index also stores repositories you can reach but have not cloned', async
     assert.equal(zebra.issues[0].number, 2);
     assert.equal(repos[REPOS[0]].cloned, true);
     assert.equal(Object.values(repos).filter((x) => x.slug === 'github.com/alice/apple').length, 1, 'a clone is not listed twice');
+    // Repositories you only see as an org member: name and description, no README or issues.
+    assert.deepEqual([repos['github.com/org/kiwi'].description, repos['github.com/org/kiwi'].readme, repos['github.com/org/kiwi'].lite], ['org repo', '', true]);
+    assert.equal(repos['github.com/alice/zebra'].lite, undefined, 'your own repository keeps its README');
   } finally {
     gh.server.close();
     rmSync(cache, { recursive: true, force: true });
@@ -430,34 +435,54 @@ function tempCache() {
   return mkdtempSync(join(tmpdir(), 'ghqcd-cache-'));
 }
 
-test('--issues without an index exits 1 with E_INDEX', () => {
-  const cache = tempCache();
-  const r = run(['--issues', '--json', 'x'], { env: { GHQCD_CACHE_DIR: cache } });
-  rmSync(cache, { recursive: true, force: true });
-  assert.equal(r.status, 1);
-  assert.equal(jsonLine(r.stderr).error.code, 'E_INDEX');
-});
-
-test('--semantic without a semantic index exits 1 with E_INDEX', () => {
-  const cache = tempCache();
-  const r = run(['--semantic', '--json', 'anything'], { env: { GHQCD_CACHE_DIR: cache } });
-  rmSync(cache, { recursive: true, force: true });
-  assert.equal(r.status, 1);
-  assert.equal(jsonLine(r.stderr).error.code, 'E_INDEX');
-});
-
-test('--semantic needs a query', () => {
-  const r = run(['--semantic', '--json']);
-  assert.equal(r.status, 1);
-  assert.equal(jsonLine(r.stderr).error.code, 'E_VALIDATION');
-});
-
-test('--index takes no query, and --issues does not combine with --semantic', () => {
+test('--issues and --semantic are gone: one window searches everything', () => {
+  assert.equal(run(['--issues', '--json', 'x']).status, 1);
+  assert.equal(run(['--semantic', '--json', 'x']).status, 1);
   assert.equal(jsonLine(run(['--index', '--json', 'x']).stderr).error.code, 'E_VALIDATION');
-  assert.equal(jsonLine(run(['--issues', '--semantic', '--json', 'x']).stderr).error.code, 'E_VALIDATION');
 });
 
-test('--index stores issues of writable repos, and --issues finds a repo by its issue', async () => {
+test('--json finds a clone by an issue, and says which issue', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  try {
+    await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' });
+    const r = run(['--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual([JSON.parse(r.stdout).path, JSON.parse(r.stdout).issue], [REPOS[0], 7]);
+    const apple = JSON.parse(run(['--json', 'apple'], { env: { GHQCD_CACHE_DIR: cache } }).stdout);
+    assert.equal(apple.path, REPOS[0]);
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('--json never picks a repository that is not cloned, and says how to clone it', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  try {
+    await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' });
+    const r = run(['--json', 'zebra'], { env: { GHQCD_CACHE_DIR: cache } });
+    assert.equal(r.status, 2);
+    const err = jsonLine(r.stderr).error;
+    assert.equal(err.code, 'E_NO_MATCH');
+    assert.match(err.message, /ghq get https:\/\/github\.com\/alice\/zebra/);
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('--json without any index still ranks clones by name, and starts no indexing', () => {
+  const cache = tempCache();
+  const r = run(['--json', 'banana'], { env: { GHQCD_CACHE_DIR: cache } });
+  assert.equal(JSON.parse(r.stdout).path, REPOS[1]);
+  assert.equal(existsSync(join(cache, 'index.json')), false);
+  assert.equal(existsSync(join(cache, 'progress.json')), false);
+  rmSync(cache, { recursive: true, force: true });
+});
+
+test('--index stores issues of writable repos and keeps them when the token fails', async () => {
   const cache = tempCache();
   const gh = await fakeGitHub();
   const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' };
@@ -466,20 +491,13 @@ test('--index stores issues of writable repos, and --issues finds a repo by its 
     assert.equal(idx.status, 0, idx.stderr);
     const out = JSON.parse(idx.stdout);
     assert.equal(out.repos, 3);
-    assert.match(idx.stderr, /✓ indexed 3 repositories in \d+ s · 2 issues/, 'one receipt line ends the run');
+    assert.match(idx.stderr, /✓ indexed 5 repositories in \d+ s · 2 issues/, "one receipt line, counting the repositories that are not cloned");
     assert.equal(out.issues, 2, 'apple (cloned) and zebra (not cloned)');
     assert.equal(statSync(join(cache, 'index.json')).mode & 0o777, 0o600, 'issue text is private');
 
-    const r = run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } });
-    assert.equal(r.status, 0, r.stderr);
-    const pick = JSON.parse(r.stdout);
-    assert.equal(pick.path, REPOS[0]);
-    assert.equal(pick.issue, 7);
-
-    // A plain repository line still matches in --issues mode, without an issue number.
-    const plain = JSON.parse(run(['--issues', '--json', 'cherry'], { env: { GHQCD_CACHE_DIR: cache } }).stdout);
+    const plain = JSON.parse(run(['--json', 'cherry'], { env: { GHQCD_CACHE_DIR: cache } }).stdout);
     assert.equal(plain.path, REPOS[2]);
-    assert.equal(plain.issue, undefined);
+    assert.equal(plain.issue, undefined, 'found by name, not by an issue');
 
     // A rejected token keeps the issues the last run fetched.
     gh.server.fail = true;
@@ -488,18 +506,18 @@ test('--index stores issues of writable repos, and --issues finds a repo by its 
     assert.match(bad.stderr, /HTTP 401/);
     assert.equal(JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8')).repos['github.com/alice/zebra'].readme, 'zebra readme',
       'a repository that is not cloned survives a rejected token too');
-    assert.equal(JSON.parse(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
+    assert.equal(JSON.parse(run(['--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
 
     // The run is timed, and an index older than a week is pointed out, not silently used.
     const status = JSON.parse(readFileSync(join(cache, 'status.json'), 'utf8'));
     assert.ok(Date.now() - status.textAt < 60000 && status.textSeconds >= 0);
     writeFileSync(join(cache, 'status.json'), JSON.stringify({ ...status, textAt: Date.now() - 10 * 864e5 }));
-    assert.match(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stderr, /10 days old/);
+    assert.match(run(['--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stderr, /10 days old/);
 
     // So does having no token at all.
     const none = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' });
     assert.equal(JSON.parse(none.stdout).skipped, 3);
-    assert.equal(JSON.parse(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
+    assert.equal(JSON.parse(run(['--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
   } finally {
     gh.server.close();
     rmSync(cache, { recursive: true, force: true });
