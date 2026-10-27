@@ -23,7 +23,7 @@ fix the known Chinese encryption miss, and retain keyword ranking and the 20-hit
 - [x] Test metric arithmetic, split isolation, threshold boundaries and real-score regressions.
 - [x] Apply the selected short/long floors and max-gap policy; update docs with scope and limitations.
 - [x] Verify actual meaningSearch with the real model, run the full suite and clean-container E2E.
-- [ ] Finish code/results review and create a reviewable PR with measured evidence.
+- [x] Finish code/results review and create a reviewable PR with measured evidence.
 
 Labels are agent-authored functional judgments based on cached public docs,
 checked by a separate agent. They are not an external human gold benchmark.
@@ -43,3 +43,5 @@ Validation: 117/117 tests pass with zero skips in a clean network-disabled
 Linux container, including five real-fzf PTY E2E cases. Host: 114 pass, three
 fish skips. Metric replay requires no model or network. npm pack excludes
 research datasets, scripts and tests. No vector rebuild or model download.
+
+Reviewable PR: https://github.com/ryoshin0830/ghqcd/pull/6
