@@ -122,7 +122,7 @@ github.com/ryoshin0830/ghqcd             code: bin/ghqcd.mjs:812 function fzfPic
   手元にあるものは README をディスクから読む。
 - issue は、書き込み権限のあるリポジトリだけ（今と同じ）。clone していないリポジトリも対象。
 - ベクトルは、clone していないリポジトリの README と issue も対象（差分だけ、今の仕組み）。
-- 規模の実測: github.com 174 件、git.pepabo.com 27 件。
+- 規模の実測: github.com 174 件、社内 GHE 27 件。
 
 ### `--json` と `--list`（スクリプトとエージェント向け）
 

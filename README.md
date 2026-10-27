@@ -109,7 +109,7 @@ organizations share.
 │   8/8 ─────────────────────────────────────────────────────── │
 │ ▌ github.com/ryoshin0830/lj · not cloned                      │
 │ ▌ github.com/ryoshin0830/short-url  README: …                 │
-│ ▌ git.pepabo.com/hosting/alchemy  #3170 …                     │
+│ ▌ github.com/alice/api  #12 …                                 │
 │ ───────────────────────────────────────────────────────────── │
 │   indexed 2 h ago · enter go · ctrl-o open on GitHub · ctrl-r │
 ╰───────────────────────────────────────────────────────────────╯

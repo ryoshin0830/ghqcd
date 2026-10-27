@@ -69,7 +69,7 @@ test('nameHits keeps only hits found by name', () => {
 });
 
 test('pathHits keeps hits found by name, slug, or subsequence: what fzf matched before', () => {
-  const docs = [doc('alchemy', { slug: 'git.pepabo.com/hosting/alchemy' }), doc('notes', { readme: 'hosting' })];
+  const docs = [doc('alchemy', { slug: 'ghe.example.com/hosting/alchemy' }), doc('notes', { readme: 'hosting' })];
   assert.deepEqual(order(pathHits(keywordRank(docs, 'hosting/alc'))), ['alchemy']);
   assert.deepEqual(order(pathHits(keywordRank(docs, 'hosting'))), ['alchemy']);
 });
