@@ -29,7 +29,8 @@ OPTIONS
   --init <shell>     print shell integration for zsh | bash | fish, then exit
   --cmd <name>       function name emitted by --init (default: ${PKG})
   --query <q>        initial query (same as the positional argument)
-  --list             print every cloned repository instead of picking one
+  --list             print every cloned repository (with a query: the clones
+                     --json would pick from, best first)
   --index            refresh the search index now (the window also does it
                      by itself, in the background, once a day)
   --json             stdout = 1-line JSON, never opens the fzf UI
@@ -57,7 +58,8 @@ THE SEARCH WINDOW
   readable only by you. It holds README and issue text read through the
   GitHub API (GH_TOKEN / GITHUB_TOKEN, or \`gh auth token\`), and for meaning
   search a pinned WebAssembly runtime and model (Qwen3-Embedding-0.6B fp16,
-  about 1.2 GB, downloaded once). GHQCD_SEMANTIC=0 leaves the model out.
+  about 1.2 GB, downloaded once), which holds about 4 GB of memory while the
+  window is open. GHQCD_SEMANTIC=0 leaves the model out.
   Code queries for repositories that are not cloned go to GitHub's code search.
 
 WHY --init

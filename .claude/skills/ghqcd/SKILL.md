@@ -78,7 +78,7 @@ To enumerate instead of picking:
 
 ```bash
 ghqcd --list --json
-ghqcd --list --json <query>      # narrowed
+ghqcd --list --json <query>      # the clones --json <query> picks from, best first
 ```
 
 ## Output (stdout, 1 line)
@@ -111,7 +111,8 @@ growth.
 
 `matches > 1` means the query hit several repositories and you received the
 best-scoring one. Do not silently act on it: show the user the candidates
-(`ghqcd --list --json <query>`) and ask which they meant. Acting on a
+(`ghqcd --list --json <query>` lists exactly those `matches`, best first) and
+ask which they meant. Acting on a
 best-guess path can run commands in the wrong repository.
 
 `matches == 1` is unambiguous; proceed.

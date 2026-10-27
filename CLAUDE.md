@@ -11,7 +11,7 @@ of `README.md` instead.
 
 ## What this package does
 
-A small Node.js CLI (~600 lines, zero runtime dependencies) that:
+A small Node.js CLI (zero runtime dependencies) that:
 
 1. Runs `ghq list -p` for every cloned repository, and `ghq root` for slugs.
 2. Picks one — interactively in one fzf search window over every repository
@@ -284,6 +284,10 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   FP32 model exactly, while the int8 export drifted (cosine median 0.835) and
   lost about a tenth of the correct answers. Changing the model changes
   `MODEL.key`, which keys the vector files, so old vectors are never mixed in.
+  Nothing deletes the old model, runtime or vectors: two installed versions
+  (a global 0.2 and an npx 0.3) share one cache and would delete each other's
+  1.2 GB every day. Whoever changes `MODEL` or the runtime lockfile says in the
+  release notes what can be removed from `~/.cache/ghqcd`.
 - One chunk per issue (title + start of body). All chunks made 12,765 chunks
   from 1,571 real issues, a 3.5-hour first pass.
 - A refresh is incremental twice over: each README / issue text is hashed
@@ -424,13 +428,16 @@ drive the interactive fzf UI by piping keystrokes into `script` — fzf reads
   user-visible interface change; document it in the commit.
 - `README.md` — end-user docs.
 - `test/cli.test.mjs` — shim-based CLI tests; `test/{rank,docs,serve,code}.test.mjs` — the search parts.
+- `docs/research/` — why the model, runtime and cut-offs are what they are. The
+  experiment code and raw results (`poc/`) stay on the branch
+  `poc/multilingual-repository-search` (PR #1).
 
 ---
 
 ## Things that are intentionally NOT here
 
-- **A `--zoxide`-style frecency database.** `ghq list` is the source of truth;
-  ranking belongs to fzf.
+- **A `--zoxide`-style frecency database.** `ghq list` and the index are the
+  source of truth; ranking is `lib/rank.mjs` (I12).
 - **Caching `ghq list` output.** It is a directory walk of a few milliseconds,
   and a stale cache after `ghq get` is worse than the walk. (The search index
   is different: it needs the network. The window still takes the clones from

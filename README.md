@@ -88,7 +88,7 @@ ghqcd [options] [<query>]
 | `--init <shell>` | print shell integration for `zsh` \| `bash` \| `fish` |
 | `--cmd <name>` | function name emitted by `--init` (default: `ghqcd`) |
 | `--query <q>` | initial query (same as the positional) |
-| `--list` | print every cloned repository instead of picking one |
+| `--list` | print every cloned repository, or with a query the clones `--json` would pick from, best first |
 | `--index` | refresh the search index now (the window does it by itself, in the background) |
 | `--json` | stdout = 1-line JSON, never opens the UI |
 | `--quiet` | stdout = path only |
@@ -196,7 +196,9 @@ the first index run installs, into the cache directory:
   [onnx-community/Qwen3-Embedding-0.6B-ONNX](https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX),
   checked against SHA-256 hashes in the source.
 
-`GHQCD_SEMANTIC=0` leaves both out. The first embedding pass is the slow part:
+While the window is open, the loaded model holds about 4 GB of memory (it is
+released when the window closes). `GHQCD_SEMANTIC=0` leaves the runtime, the
+model and that memory out. The first embedding pass is the slow part:
 55 repositories with 1,571 issues made 1,796 chunks and took 37 minutes on an
 Apple M4 Pro. Later runs compare each README and issue with the last run by
 SHA-256 and embed only what changed; with nothing changed, a refresh takes as
@@ -223,7 +225,8 @@ $ ghqcd --list --json
 ```
 
 `matches` tells you whether the query was unique — `> 1` means the best-scoring
-candidate was returned but the query was ambiguous.
+candidate was returned but the query was ambiguous. `ghqcd --list --json <query>`
+lists exactly those candidates, best first.
 
 Errors go to stderr as JSON, and stdout stays empty:
 
