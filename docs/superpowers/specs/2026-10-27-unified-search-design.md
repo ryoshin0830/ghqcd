@@ -130,11 +130,20 @@ github.com/ryoshin0830/ghqcd             code: bin/ghqcd.mjs:812 function fzfPic
   clone していないリポジトリしか当たらなかったら `E_NO_MATCH` にし、メッセージに `ghq get <url>` を書く。
 - `--list` は今のまま（clone 済みだけ）。
 
-### 意味検索を有効にする方法（builder check を受けた判断）
+### 意味検索は既定でオン、初回はステータスバーで見せる（利用者の決定、2026-10-27）
 
-- モデル（1.2GB）を入れるかは、今までどおり `ghqcd --index --semantic` で本人が決める。`--semantic` は `--index` と組み合わせるときだけ使えるフラグとして残す。
-- 一度入れれば、ctrl-r と `--index` はベクトルも差分だけ更新する（今の `status.semanticAt` の有無で判断）。
-- 入れていない間は、意味の一致がない一覧になるだけ。
+- 利用者の言葉: 「ベクトル検索のやつはデフォルトでオンですよ。最初時間かかるかもだけど、ステータスバーとかを用意しよう」。
+- `--index`（と ctrl-r）は毎回ベクトルまで作る（ランタイムの導入、モデル 1.2GB の取得、差分の embedding）。`--semantic` フラグは廃止。
+- ウィンドウを開いたとき、索引がない・1 日より古い・ベクトルが足りないなら、裏で `ghqcd --index` を低い優先度（nice 19）で起動する。
+  ウィンドウはすぐ開き、まず名前で探せる。裏の作成が書き上げるたびに、結果が良くなる。
+- 裏の作成は `<cache>/progress.json` に段階・件数・残り時間を書く。親はそれを 0.5 秒ごとに読み、fzf の下部の 1 行（`--footer`）を
+  `--listen=<cache>/fzf-<pid>.sock` 経由の `change-footer` で書き換える。書き上がったら `reload` で結果を入れ替える。
+- 例: `downloading the search model 43% of 1.2 GB (once)` → `embedding 412/1,800 · about 25 min left` → `indexed just now · ctrl-r refresh · ctrl-o open`。
+  失敗は `! GitHub could not be read: HTTP 401 — run gh auth login` のように、何が起きて何をすればよいかを書く。
+- `--footer` と Unix ソケットの `--listen` が使えない fzf（Debian の 0.38 など）では、開いた時点の状態を固定のヘッダーに出すだけにする（判定は起動前に `fzf --filter` で試す。27 ミリ秒）。
+- ウィンドウを閉じても裏の作成は続ける。閉じたとき、続いていることを stderr に 1 行で知らせる。途中で止まっても次回は続きから。
+- ctrl-r は、新しい fzf ではウィンドウを開いたまま裏の作成を始める。古い fzf では、今までどおり閉じて更新して開き直す。
+- `--json` / `--list` / `--quiet`（端末なし）では、裏の作成を自動で始めない。
 
 ### コード検索で GitHub に問い合わせるタイミング（builder check を受けた判断）
 

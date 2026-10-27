@@ -20,7 +20,8 @@
 - Weights (points): name exact 100, name prefix 90, name substring 80, slug substring 60, name subsequence (single-term queries only) 40, description 30, README 20, issue title 12, issue body 8. Ties: cloned first, then newer `pushedAt`.
 - Meaning hits: cosine ≥ 0.35, at most 20, only repositories without a keyword hit. Code hits last.
 - Tests: no network, no TTY; the ranker is unit-tested as a pure function.
-- `--issues` is removed; `--semantic` stays only as an `--index` option (opts in to the model).
+- `--issues` and `--semantic` are removed: meaning search is on by default; `--index` always builds vectors.
+- Opening the window starts a detached, nice-19 `ghqcd --index` when the index is missing, older than 1 day, or lacks vectors; it reports to `<cache>/progress.json`; a live fzf (`--footer` + `--listen=*.sock`, probed with `fzf --filter`) shows it in the footer via `change-footer`, refreshed every 0.5 s, and `reload`s when the index is rewritten. Not for --json/--list/--quiet without a TTY.
 - Fast path: exactly one cloned hit on name/slug/fuzzy → go; else zero such cloned hits and exactly one not-cloned name hit (≥80/term) → clone and go; else open the window.
 
 ## Review Focus
@@ -121,6 +122,12 @@
   - line display: `slug[ · not cloned]  <snippet>`; meaning lines prefix `≈ `; code lines `code: <path>:<line> <text>`; matched terms bold unless `NO_COLOR`.
 - [ ] **Step 4:** run all tests → PASS.
 - [ ] **Step 5:** Commit `feat: one search window for cloned and GitHub repositories`.
+
+### Task 4b: Status bar and background indexing
+
+**Files:** Modify `bin/ghqcd.mjs`, `lib/search-index.mjs` (progress.json writer). Test: `test/cli.test.mjs` (`--index` writes progress.json with phase `done`; `--json` never spawns an indexer).
+
+- [ ] Failing tests → implement → pass → commit `feat: index in the background, with a status bar`.
 
 ### Task 5: Code hits
 
