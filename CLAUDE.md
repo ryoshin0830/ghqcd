@@ -228,8 +228,11 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   push. The user fixed the order name > description > README > issues > code;
   do not reorder. Subsequence runs on the name only: on the slug, `cli`
   matched every repository through `github.com/alice`.
-- **Below keyword hits:** meaning hits (cosine ≥ 0.45, at most 20, issue
-  chunks −0.1), then code hits.
+- **Below keyword hits:** meaning hits (at most 20, issue chunks −0.1), then
+  code hits. `selectMeaningHits` in `lib/rank.mjs` uses a 0.40 floor for short
+  queries (NFKC: ≤12 Unicode characters or ASCII ≤3 words), 0.45 otherwise,
+  and keeps candidates within 0.01 of the best repository score. Calibration
+  and real-model score fixtures: `docs/research/semantic-calibration/`.
 - **Every line says what matched**, in a 7-column label (`matchLabel` in
   `lib/rank.mjs`): `name`, `name*`, `path`, `desc`, `readme`, `issue`,
   `~readme`, `~issue`, `code`; `~` alone means "by meaning". ASCII only: `≈`

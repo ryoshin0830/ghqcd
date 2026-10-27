@@ -1,0 +1,30 @@
+{
+  "queryCount": 24,
+  "threshold": 0.45,
+  "shortThreshold": 0.4,
+  "maxGap": 0.01,
+  "baseline": {
+    "queries": 24,
+    "tp": 12,
+    "fp": 14,
+    "fn": 0,
+    "precision": 0.46153846153846156,
+    "recall": 1,
+    "f1": 0.631578947368421,
+    "negatives": 12,
+    "negativeErrors": 4,
+    "negativeFalsePositiveRate": 0.3333333333333333
+  },
+  "chosen": {
+    "queries": 24,
+    "tp": 12,
+    "fp": 4,
+    "fn": 0,
+    "precision": 0.75,
+    "recall": 1,
+    "f1": 0.8571428571428571,
+    "negatives": 12,
+    "negativeErrors": 4,
+    "negativeFalsePositiveRate": 0.3333333333333333
+  }
+}
