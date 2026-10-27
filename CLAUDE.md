@@ -242,8 +242,23 @@ bytes leaking into files.
   Bump `CHUNKING` when `chunk()` or its input changes.
 - `--index` takes `index.lock` (pid inside; a dead pid's lock is taken over).
   Two runs appending to one vector file corrupted it.
-- `--issues` / `--semantic` print a hint on stderr when the index is over 7
-  days old. They never refresh it themselves: that reads private issues.
+- The `--issues` / `--semantic` pickers take `--expect=ctrl-r --print-query`:
+  fzf then prints three lines (query, key, selection), so `fzfPick` strips
+  only the final newline. ctrl-r refreshes and reopens with the typed query,
+  without `--select-1`. The header is one line fitted to the list's width by
+  priority (ctrl-r hint, then age, then the query); `status.json` holds the
+  timings behind its estimate. Without a picker (`--json`), an index over
+  7 days old gets one stderr line instead. Nothing refreshes it unasked.
+- Picker layout was checked at 150, 120, 100, 80x24 and 60 columns. The
+  preview hides below 100 columns: fzf's `<N(hidden)` threshold is the
+  preview's own width, so it reads `<50`. `--min-height=14` keeps 9 result
+  rows at 80x24 (two header lines and a full box had left 3).
+- Index output: on a TTY, progress is one line rewritten in place and the run
+  ends with one `✓` receipt; elsewhere lines are appended, at most every 2 s,
+  so logs and screen readers get text, not repaints. Vector keys are saved
+  after every chunk, because the progress line promises ctrl-c is safe.
+- `--issues` lines are `<path>\t<number or empty>\t<shown text>`; the issue
+  number is a field, not parsed back out of the text.
 - `--index` keeps the previous description and issues of a repository when
   there is no token or the API call fails: an expired token must not silently
   empty the index. NOT_FOUND and gist hosts count as skipped, not as errors.
@@ -340,6 +355,8 @@ The interactive fzf UI cannot be tested there. Run these by hand:
 | Cancel | `ghqcd`, press Esc | exit 130, shell stays put, no error line |
 | Ctrl-C | `ghqcd`, press Ctrl-C | exit 130, cursor restored |
 | Preview pane | `ghqcd` | right pane shows `git log --oneline -10` |
+| Refresh in place | `ghqcd --semantic "…"`, type, ctrl-r | one progress line, one `✓` line, picker reopens with the typed text |
+| Narrow picker | `ghqcd --issues` at 80x24 | preview hidden, 9 result rows, header not cut |
 | npx one-shot | `npx ghqcd <q>` | box on terminal, `c` copies the cd command |
 | Stdout separation | `ghqcd api > out.txt` | box on terminal, `out.txt` empty |
 | No fzf | `PATH=/usr/bin ghqcd` | offers `brew install fzf`, exit 127 if declined |

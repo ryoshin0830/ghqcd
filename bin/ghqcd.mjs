@@ -59,6 +59,9 @@ SEARCH INDEX
   model, Qwen3-Embedding-0.6B fp16 (~1.2 GB). The first --index --semantic
   takes minutes; later runs embed only what changed. Searching is local.
 
+  The --issues and --semantic pickers show when the index was built and what
+  a refresh costs; ctrl-r there refreshes it and reopens the picker.
+
 WHY --init
   A child process cannot change its parent shell's directory, so \`npx ${PKG}\`
   alone can only *print* where to go. \`--init\` emits a shell function that
@@ -530,14 +533,15 @@ function listRepos() {
 // ── fzf ──────────────────────────────────────────────────────────────────────
 
 const PREVIEW = 'git -C {} log --oneline -10';
-// --issues and --semantic lines are `<path>\t<shown text>`: fzf shows and
-// searches the second field and still prints the whole line back.
+// --semantic lines are `<path>\t<shown text>` (--issues adds the issue number
+// as a second field): fzf shows and searches only the text and still prints
+// the whole line back.
 const TAB_LINES = ['--delimiter=\t', '--with-nth=2..'];
 // Fuzzy matching over a whole issue body matches almost anything: the letters
 // of "zzzz" are scattered through any long text. Issue lines match exactly
 // (space-separated terms, each a substring), as fzf's --exact defines it.
 // --no-hscroll keeps the slug and title in view when the hit is deep in the body.
-const ISSUE_LINES = [...TAB_LINES, '--exact', '--no-hscroll'];
+const ISSUE_LINES = ['--delimiter=\t', '--with-nth=3..', '--exact', '--no-hscroll'];
 
 // Interactive pick. fzf renders on /dev/tty and writes only the selection to
 // stdout, so capturing stdout here does not disturb the UI.
@@ -568,8 +572,9 @@ function fzfPick(candidates, extra = [], q = query) {
       : 'no repository selected');
   }
   if (r.status !== 0) die('E_FZF', `fzf exited with status ${r.status}`);
-  const sel = (r.stdout ?? '').trim();
-  if (!sel) die('E_INTERRUPTED', 'cancelled');
+  // Only the final newline goes: with --print-query / --expect, leading lines may be empty.
+  const sel = (r.stdout ?? '').replace(/\n$/, '');
+  if (!sel.trim()) die('E_INTERRUPTED', 'cancelled');
   return sel;
 }
 
@@ -674,58 +679,175 @@ function copyToClipboard(text) {
 const searchIndex = () => import('../lib/search-index.mjs');
 const pathOf = (line) => line.split('\t')[0];
 
+// Output for --index and for ctrl-r in the pickers. All of it goes to stderr,
+// even under --quiet: the shell function adds that flag to every call.
+// On a terminal, progress is one line rewritten in place and the run ends in a
+// one-line receipt, so a refresh leaves one line of scrollback, not ten.
+// Anywhere else (a log, a screen reader) lines are appended, at most every 2 s.
+let liveLine = false;
+let lastAppend = 0;
+function fit(s, width) {
+  if (strWidth(s) <= width) return s;
+  let out = '';
+  for (const ch of s) {
+    if (strWidth(out + ch) > width - 1) break;
+    out += ch;
+  }
+  return `${out}…`;
+}
+function say(s) {
+  if (liveLine) stderr.write('\r\x1b[2K');
+  liveLine = false;
+  stderr.write(`${s}\n`);
+}
+function progress(s) {
+  if (stderr.isTTY) {
+    stderr.write(`\r\x1b[2K${dim(fit(s, (stderr.columns || 80) - 1))}`);
+    liveLine = true;
+  } else if (Date.now() - lastAppend > 2000) {
+    lastAppend = Date.now();
+    say(s);
+  }
+}
+
+// "2 h ago (10-26 18:56)", local time; the clock time is left out on request.
+function ago(at, clock = true) {
+  const min = (Date.now() - at) / 60000;
+  const rel = min < 1 ? 'just now' : min < 90 ? `${Math.round(min)} min ago`
+    : min < 36 * 60 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
+  return clock ? `${rel} (${new Date(at).toLocaleString('sv-SE').slice(5, 16)})` : rel;
+}
+
+// What a refresh roughly costs, from the parts the last runs measured. How many
+// READMEs and issues changed is unknown until GitHub has been asked, so the
+// long form adds that part as a rate; the progress line then gives the real ETA.
+function refreshCost(si, semantic, long) {
+  const s = si.readStatus();
+  if (!s.textSeconds) return '';
+  const quiet = `~${si.duration(s.textSeconds)}`;
+  if (!semantic || !s.secondsPerChunk || !long) return quiet;
+  return `${quiet} if nothing changed, else ~${si.duration(s.textSeconds + s.loadSeconds)} + ~${si.duration(s.secondsPerChunk)} per change`;
+}
+
+// Throws; the caller decides whether a failure ends the program.
+async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {}) {
+  const t0 = Date.now();
+  const s = si.readStatus();
+  const at = semantic ? s.semanticAt : s.textAt;
+  const cost = refreshCost(si, semantic, true);
+  if (verbose) say(dim(`indexing ${repos.length} repositories${at ? ` · last indexed ${ago(at, false)}` : ''}${cost ? ` · ${cost}` : ''}`));
+  if (!verbose) progress(`indexing ${repos.length} repositories…`);
+  const release = si.lockIndex();
+  try {
+    const { index, stats } = await si.buildTextIndex(repos.map((p) => ({ path: p, slug: slugOf(p) })), { progress });
+    const res = { ...stats };
+    if (verbose) {
+      say(dim(`  ${stats.readmes} READMEs, ${stats.github} repositories on GitHub, ${stats.issues} issues` +
+        (stats.skipped ? `, ${stats.skipped} skipped (no token for the host, not on GitHub, or no access)` : '')));
+      if (!stats.github && stats.skipped) say(dim('  for issues: set GH_TOKEN, or log in with `gh auth login`'));
+    }
+    if (stats.errors) {
+      say(`${PKG}: warning: GitHub could not be read for ${stats.errors} repositories; their last issues are kept (first: ${stats.firstError})`);
+    }
+    if (semantic) Object.assign(res, await si.buildVectors(index, { log: (m) => say(dim(m)), progress }));
+    const took = si.duration((Date.now() - t0) / 1000);
+    say(`${green('✓')} indexed ${repos.length} repositories in ${took}` +
+      (semantic ? ` · ${res.changed} ${res.changed === 1 ? 'README or issue' : 'READMEs or issues'} changed` : ` · ${stats.issues} issues`));
+    return res;
+  } finally {
+    if (liveLine) stderr.write('\r\x1b[2K'); // a failure's message starts on a clean line
+    liveLine = false;
+    release();
+  }
+}
+
 async function runIndex(repos, slugOf) {
   const si = await searchIndex();
-  // Progress goes to stderr even under --quiet: the shell function adds that
-  // flag to every call, and a silent multi-minute run looks hung.
-  const say = (s) => stderr.write(`${dim(s)}\n`);
   const t0 = Date.now();
-  say(`indexing ${repos.length} repositories…`);
-  const res = {};
+  let res;
   try {
-    si.lockIndex();
-    const { index, stats } = await si.buildTextIndex(repos.map((p) => ({ path: p, slug: slugOf(p) })), { log: say });
-    Object.assign(res, stats);
-    say(`  ${stats.readmes} READMEs, ${stats.github} repositories on GitHub, ${stats.issues} issues` +
-      (stats.skipped ? `, ${stats.skipped} skipped (no token for the host, not on GitHub, or no access)` : '') +
-      (stats.errors ? `, ${stats.errors} API errors (first: ${stats.firstError})` : ''));
-    if (!stats.github && stats.skipped) say('  for issues: set GH_TOKEN, or log in with `gh auth login`');
-    if (values.semantic) {
-      Object.assign(res, await si.buildVectors(index, { log: say }));
-      say(`  ${res.changed} texts changed since the last run, ${res.embedded} chunks embedded`);
-    }
+    res = await refreshIndex(si, repos, slugOf, values.semantic, { verbose: true });
   } catch (err) {
     die(err.code ?? 'E_INDEX', err.message);
   }
   res.seconds = Math.round((Date.now() - t0) / 1000);
   res.cache = si.cacheDir();
   if (isJson) process.stdout.write(JSON.stringify({ schemaVersion: SCHEMA_VERSION, ...res }) + '\n');
-  else say(`done in ${res.seconds}s → ${res.cache}`);
+  else say(dim(`  cache: ${res.cache}`));
 }
 
-// Nothing refreshes the index behind the user's back (it reads private issues),
-// so an old one is pointed out instead.
+// Nothing refreshes the index behind the user's back (it reads private issues).
+// The picker's header shows its age; without a picker, an old one is pointed out.
 const STALE_DAYS = 7;
-function staleHint(days, cmd) {
-  if (days > STALE_DAYS) stderr.write(`${dim(`ghqcd: the index is ${Math.floor(days)} days old; \`${cmd}\` refreshes it`)}\n`);
+function staleHint(at, cmd) {
+  const days = (Date.now() - at) / 864e5;
+  if (at && days > STALE_DAYS) say(dim(`${PKG}: the index is ${Math.floor(days)} days old; \`${cmd}\` refreshes it`));
 }
 
-// --issues: the repositories plus one line per indexed issue.
-async function pickWithIssues(repos) {
+// One header line for the --issues / --semantic picker. What does not fit the
+// list's width is dropped, least important first: the query (the user just
+// typed it), then the age; the ctrl-r hint is the last to go.
+function pickerHeader(si, semantic) {
+  const cols = stderr.columns || 80;
+  const width = (cols >= 100 ? Math.floor(cols / 2) : cols) - 4; // beside the preview, or alone
+  const s = si.readStatus();
+  const at = semantic ? s.semanticAt : s.textAt;
+  const cost = refreshCost(si, semantic, false);
+  const parts = [`ctrl-r refresh${cost ? ` (${cost})` : ''}`, at && `indexed ${ago(at)}`, semantic && `meaning: ${query}`];
+  const kept = [];
+  for (const p of parts.filter(Boolean)) {
+    if (strWidth([p, ...kept].join(' · ')) > width) break;
+    kept.unshift(p);
+  }
+  return kept.join(' · ');
+}
+
+// The --issues / --semantic picker. ctrl-r refreshes the index in place and
+// reopens the picker with whatever was typed; lines() is called again.
+async function pickWithRefresh(si, lines, extra, { semantic, repos, slugOf, q }) {
+  for (;;) {
+    const header = pickerHeader(si, semantic);
+    const args = [
+      ...extra, '--print-query', '--expect=ctrl-r', '--min-height=14',
+      // Below 100 columns the list needs the whole width, so the preview
+      // hides. fzf's threshold is the preview's own width: half of 100.
+      // border-left: a box inside the outer --border would separate nothing.
+      '--preview-window=right,50%,wrap,border-left,<50(hidden)',
+      ...(header ? [`--header=${header}`] : []),
+    ];
+    const [typed, key, line] = fzfPick(await lines(), args, q).split('\n');
+    if (key !== 'ctrl-r') return line;
+    try {
+      await refreshIndex(si, repos, slugOf, semantic);
+    } catch (err) {
+      say(`${red(`${PKG}:`)} refresh failed: ${err.message}`);
+    }
+    // Reopen with the typed text, but without --select-1: nobody asked to leave yet.
+    q = '';
+    extra = [...extra.filter((a) => !a.startsWith('--query=')), `--query=${typed}`];
+  }
+}
+
+// --issues: the repositories plus one line per indexed issue. Lines are
+// `<path>\t<issue number, or empty>\t<shown text>`.
+async function pickWithIssues(repos, slugOf) {
   const si = await searchIndex();
-  const index = si.readTextIndex();
-  if (!index) die('E_INDEX', 'no index yet. Run `ghqcd --index` first.');
-  staleHint(si.indexAgeDays(false), 'ghqcd --index');
+  if (!si.readTextIndex()) die('E_INDEX', 'no index yet. Run `ghqcd --index` first.');
   const present = new Set(repos);
-  const lines = repos.map((p) => `${p}\t${p}`)
-    .concat(si.issueLines(index).filter((l) => present.has(pathOf(l))));
-  const issueOf = (line) => Number(line.split('\t')[1]?.match(/^\S+ {2}#(\d+) /)?.[1]) || undefined;
+  const lines = () => repos.map((p) => `${p}\t\t${slugOf(p)}`)
+    .concat(si.issueLines(si.readTextIndex()).filter((l) => present.has(pathOf(l))));
+  const issueOf = (line) => Number(line.split('\t')[1]) || undefined;
   if (isNonInteractive) {
-    const hits = fzfFilter(lines, query, ISSUE_LINES);
+    staleHint(si.readStatus().textAt, 'ghqcd --index');
+    const hits = fzfFilter(lines(), query, ISSUE_LINES);
     if (hits.length === 0) die('E_NO_MATCH', `no repository or issue matched '${query}'`);
     return { selected: pathOf(hits[0]), matches: new Set(hits.map(pathOf)).size, extra: { issue: issueOf(hits[0]) } };
   }
-  const line = fzfPick(lines, ISSUE_LINES);
+  const line = await pickWithRefresh(si, lines, [
+    ...ISSUE_LINES, '--prompt=repo or issue> ',
+    // An issue previews its own text; a repository its recent commits.
+    "--preview=[ -z {2} ] && git -C {1} log --oneline -10 || printf '%s\\n' {3..}",
+  ], { semantic: false, repos, slugOf, q: query });
   return { selected: pathOf(line), matches: 1, extra: { issue: issueOf(line) } };
 }
 
@@ -733,20 +855,27 @@ async function pickWithIssues(repos) {
 async function pickSemantic(repos, slugOf) {
   const si = await searchIndex();
   const present = new Set(repos);
-  let ranked;
-  try {
-    ranked = (await si.semanticRank(query)).filter((r) => present.has(r.path));
-  } catch (err) {
-    die(err.code ?? 'E_INDEX', err.message);
-  }
-  if (ranked.length === 0) die('E_NO_MATCH', 'the semantic index has none of these repositories. Run `ghqcd --index --semantic`.');
-  staleHint(si.indexAgeDays(true), 'ghqcd --index --semantic');
+  let ranked = [];
+  const rank = async () => {
+    try {
+      ranked = (await si.semanticRank(query)).filter((r) => present.has(r.path));
+    } catch (err) {
+      die(err.code ?? 'E_INDEX', err.message);
+    }
+    if (ranked.length === 0) die('E_NO_MATCH', 'the semantic index has none of these repositories. Run `ghqcd --index --semantic`.');
+    return ranked.map((r) => `${r.path}\t${r.score.toFixed(2)}  ${slugOf(r.path)}` +
+      `${r.kind === 'issue' ? `  #${r.number}` : ''}  ${si.flat(r.preview)}`);
+  };
   if (isNonInteractive) {
+    await rank();
+    staleHint(si.readStatus().semanticAt, 'ghqcd --index --semantic');
     return { selected: ranked[0].path, matches: ranked.length, extra: { score: +ranked[0].score.toFixed(4) } };
   }
-  const lines = ranked.map((r) => `${r.path}\t${r.score.toFixed(2)}  ${slugOf(r.path)}` +
-    `${r.kind === 'issue' ? `  #${r.number}` : ''}  ${si.flat(r.preview)}`);
-  const line = fzfPick(lines, [...TAB_LINES, '--no-sort'], '');
+  const line = await pickWithRefresh(si, rank, [
+    ...TAB_LINES, '--no-sort', '--no-hscroll',
+    // Why it ranked here (the passage that matched), then what happened lately.
+    "--preview=printf '%s\\n\\n' {2..}; git -C {1} log --oneline -5",
+  ], { semantic: true, repos, slugOf, q: '' });
   const hit = ranked.find((r) => r.path === pathOf(line));
   return { selected: hit.path, matches: 1, extra: { score: +hit.score.toFixed(4) } };
 }
@@ -801,7 +930,7 @@ async function main() {
   if (values.semantic) {
     ({ selected, matches, extra } = await pickSemantic(repos, slugOf));
   } else if (values.issues) {
-    ({ selected, matches, extra } = await pickWithIssues(repos));
+    ({ selected, matches, extra } = await pickWithIssues(repos, slugOf));
   } else if (isNonInteractive) {
     const hits = fzfFilter(repos, query);
     if (hits.length === 0) die('E_NO_MATCH', `no repository matched '${query}'`);

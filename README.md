@@ -147,9 +147,12 @@ you run `ghqcd --index --semantic`. Then, into the cache directory:
   checked against SHA-256 hashes in the source.
 
 **Refreshing.** Nothing updates the index behind your back: it reads private
-issues, so it runs only when you ask. Re-run `ghqcd --index --semantic` (or just
-`--index`) when issues or READMEs have changed; `--issues` and `--semantic`
-remind you once the index is more than 7 days old. A refresh compares each
+issues, so it runs only when you ask. In the `--issues` and `--semantic`
+pickers, the header says when the index was built and roughly how long a
+refresh takes, and **ctrl-r** refreshes it in place: progress stays on one
+line, a `✓ indexed … in 6 s` line is left behind, and the picker reopens with
+what you had typed. From a script, re-run `ghqcd --index --semantic` (or just
+`--index`); `--json` runs mention an index more than 7 days old on stderr. A refresh compares each
 README and issue with the last run by SHA-256 and re-embeds only the ones that
 changed: with nothing changed it takes as long as fetching from GitHub (8
 seconds for 55 repositories). Only one `--index` runs at a time.

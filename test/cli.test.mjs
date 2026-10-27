@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdtempSync, writeFileSync, chmodSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, chmodSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -432,6 +432,7 @@ test('--index stores issues of writable repos, and --issues finds a repo by its 
     assert.equal(idx.status, 0, idx.stderr);
     const out = JSON.parse(idx.stdout);
     assert.equal(out.repos, 3);
+    assert.match(idx.stderr, /✓ indexed 3 repositories in \d+ s · 1 issues/, 'one receipt line ends the run');
     assert.equal(out.issues, 1);
     assert.equal(statSync(join(cache, 'index.json')).mode & 0o777, 0o600, 'issue text is private');
 
@@ -453,9 +454,10 @@ test('--index stores issues of writable repos, and --issues finds a repo by its 
     assert.match(bad.stderr, /HTTP 401/);
     assert.equal(JSON.parse(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
 
-    // An index older than a week is pointed out, not silently used.
-    const old = new Date(Date.now() - 10 * 864e5);
-    utimesSync(join(cache, 'index.json'), old, old);
+    // The run is timed, and an index older than a week is pointed out, not silently used.
+    const status = JSON.parse(readFileSync(join(cache, 'status.json'), 'utf8'));
+    assert.ok(Date.now() - status.textAt < 60000 && status.textSeconds >= 0);
+    writeFileSync(join(cache, 'status.json'), JSON.stringify({ ...status, textAt: Date.now() - 10 * 864e5 }));
     assert.match(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stderr, /10 days old/);
 
     // So does having no token at all.
