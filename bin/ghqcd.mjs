@@ -704,10 +704,14 @@ async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {
   try {
     const { index, stats } = await si.buildTextIndex(repos.map((p) => ({ path: p, slug: slugOf(p) })), { progress: report });
     const res = { ...stats };
+    // tokenFor() sends it to GH_HOST only, so without GH_HOST it goes nowhere.
+    const ignored = (process.env.GH_ENTERPRISE_TOKEN || process.env.GITHUB_ENTERPRISE_TOKEN) && !process.env.GH_HOST
+      && 'GH_ENTERPRISE_TOKEN is ignored without GH_HOST: export GH_HOST=<your GHE host>';
     if (verbose) {
       say(dim(`  ${stats.readmes} READMEs, ${stats.github} repositories on GitHub, ${stats.issues} issues` +
         (stats.skipped ? `, ${stats.skipped} skipped (no token for the host, not on GitHub, or no access)` : '')));
       if (!stats.github && stats.skipped) say(dim('  for issues: set GH_TOKEN, or log in with `gh auth login`'));
+      if (ignored) say(dim(`  ${ignored}`));
     }
     if (stats.errors) {
       say(`${PKG}: warning: GitHub could not be read for ${stats.errors} repositories; their last issues are kept (first: ${stats.firstError})`);
@@ -720,7 +724,7 @@ async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {
     si.writeProgress({
       done: true, text: stats.errors ? `GitHub could not be read: ${stats.firstError}` : receipt, failed: !stats.github && stats.errors > 0,
       // The window's footer is the only place a background run can say this.
-      ...(!stats.github && stats.skipped && { hint: 'no GitHub token: run gh auth login, then ctrl-r' }),
+      ...((!stats.github && stats.skipped && { hint: 'no GitHub token: run gh auth login, then ctrl-r' }) || (ignored && { hint: ignored })),
     });
     return res;
   } catch (err) {

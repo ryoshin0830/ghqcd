@@ -455,6 +455,20 @@ test('--index sends GH_ENTERPRISE_TOKEN to GH_HOST only, not to every host as gh
   }
 });
 
+test('--index says that GH_ENTERPRISE_TOKEN without GH_HOST is ignored', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  try {
+    const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e', GH_HOST: '' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /GH_ENTERPRISE_TOKEN is ignored without GH_HOST/);
+    assert.match(JSON.parse(readFileSync(join(cache, 'progress.json'), 'utf8')).hint, /GH_HOST/, 'the window\'s footer says it too');
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
 test('--json finds a matching clone even when hundreds of repositories that are not cloned rank higher', () => {
   const cache = tempCache();
   const repos = { [REPOS[1]]: { slug: 'github.com/alice/banana', name: 'banana', cloned: true, readme: 'a client for the api', issues: [] } };
@@ -552,6 +566,21 @@ test('--json falls back to fzf on the path even when the query is a subsequence 
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).path, REPOS[0]);
   rmSync(cache, { recursive: true, force: true });
+});
+
+test('--json alweb lands on alice/web through the real fzf, beside an org name it is a subsequence of', (t) => {
+  if (spawnSync('fzf', ['--version'], { stdio: 'ignore' }).error) return t.skip('fzf not installed');
+  const web = `${ROOT}/github.com/alice/web`;
+  const shims = makeShims({ repos: [...REPOS, web] });
+  rmSync(join(shims, 'fzf')); // the real one: its fuzzy matching is the point
+  const cache = tempCache();
+  const repos = { 'github.com/acme/small-webapp': { slug: 'github.com/acme/small-webapp', name: 'small-webapp', cloned: false, lite: true, issues: [] } };
+  writeFileSync(join(cache, 'index.json'), JSON.stringify({ repos }));
+  const r = run(['--json', 'alweb'], { shims, env: { GHQCD_CACHE_DIR: cache } });
+  rmSync(shims, { recursive: true, force: true });
+  rmSync(cache, { recursive: true, force: true });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).path, web);
 });
 
 test('--json without any index still ranks clones by name, and starts no indexing', () => {
