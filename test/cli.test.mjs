@@ -639,3 +639,46 @@ test('--index stores issues of writable repos and keeps them when the token fail
     rmSync(cache, { recursive: true, force: true });
   }
 });
+
+test('--list --json <q> lists the clones --json <q> counted, found by an issue too', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  try {
+    await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't' });
+    const list = JSON.parse(run(['--list', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout);
+    const pick = JSON.parse(run(['--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout);
+    assert.deepEqual([list.count, list.repos[0].path], [pick.matches, REPOS[0]]);
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('--json counts every matching clone, not the first 200', () => {
+  const repos = Array.from({ length: 250 }, (_, i) => `${ROOT}/github.com/alice/r${i}`);
+  const shims = makeShims({ repos });
+  const r = run(['--json', 'alice'], { shims });
+  rmSync(shims, { recursive: true, force: true });
+  assert.equal(JSON.parse(r.stdout).matches, 250);
+});
+
+test('--index works with no clone at all: a new machine can still find its GitHub repositories', async () => {
+  const gh = await fakeGitHub();
+  try {
+    const r = await runAsync(['--index', '--json'], { GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't' }, { repos: [] });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).remote, 3, 'apple, zebra and kiwi: none is cloned');
+  } finally {
+    gh.server.close();
+  }
+});
+
+test('--index --json reports an unusable cache as E_INDEX, not a raw errno', async () => {
+  const dir = tempCache();
+  const file = join(dir, 'not-a-dir');
+  writeFileSync(file, '');
+  const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: file });
+  rmSync(dir, { recursive: true, force: true });
+  assert.equal(r.status, 1);
+  assert.equal(jsonLine(r.stderr).error.code, 'E_INDEX');
+});

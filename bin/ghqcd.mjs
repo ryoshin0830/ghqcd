@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { setPriority } from 'node:os';
 import { Worker } from 'node:worker_threads';
@@ -457,7 +457,8 @@ function restoreCursor() {
 }
 
 process.on('exit', () => { disengageRawMode(); restoreCursor(); });
-for (const sig of ['SIGTERM', 'SIGHUP']) {
+// SIGINT too: a Ctrl-C during `ghq get` must still run the window's cleanup.
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
   process.on(sig, () => { disengageRawMode(); restoreCursor(); process.exit(130); });
 }
 process.on('uncaughtException', (err) => {
@@ -534,8 +535,8 @@ function listRepos() {
 
 // Non-interactive scoring pass. `fzf --filter` prints ranked matches and never
 // opens a UI, so the same fuzzy semantics apply with or without a terminal.
-function fzfFilter(candidates, q, extra = []) {
-  const r = spawnSync('fzf', ['--filter', q, ...extra], {
+function fzfFilter(candidates, q) {
+  const r = spawnSync('fzf', ['--filter', q], {
     input: candidates.join('\n') + '\n',
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -744,7 +745,7 @@ async function runIndex(repos, slugOf) {
   try {
     res = await refreshIndex(si, repos, slugOf, SEMANTIC, { verbose: true });
   } catch (err) {
-    die(err.code ?? 'E_INDEX', err.message);
+    die(err.code?.startsWith?.('E_') ? err.code : 'E_INDEX', err.message); // ENOENT is no code of ours (I7)
   }
   res.seconds = Math.round((Date.now() - t0) / 1000);
   res.cache = si.cacheDir();
@@ -755,8 +756,8 @@ async function runIndex(repos, slugOf) {
 // Meaning search is on by default; GHQCD_SEMANTIC=0 skips the model (1.2 GB) and the vectors.
 const SEMANTIC = process.env.GHQCD_SEMANTIC !== '0';
 
-// Nothing refreshes the index behind the user's back (it reads private issues).
-// The picker's header shows its age; without a picker, an old one is pointed out.
+// The window refreshes the index once a day, in the background. --json and
+// --list never do, so there an old index is pointed out instead.
 const STALE_DAYS = 7;
 function staleHint(at, cmd) {
   const days = (Date.now() - at) / 864e5;
@@ -768,9 +769,7 @@ function staleHint(at, cmd) {
 // with --disabled: the ranking is ours (lib/rank.mjs), served from this process
 // over a socket (lib/serve.mjs) so the index and the model stay in memory.
 
-const BIN = fileURLToPath(import.meta.url);
-const sh = (s) => `'${String(s).replaceAll("'", "'\\''")}'`;
-const CLIENT = `${sh(process.execPath)} ${sh(BIN)}`;
+const CLIENT = `${shq(process.execPath)} ${shq(SELF)}`;
 
 // fzf with --footer and a Unix-socket --listen can show live progress; older
 // fzf (Debian's 0.38) gets the status once, as a header. Probed rather than
@@ -787,7 +786,7 @@ function liveFzf(dir) {
 // outlives the window if it has to and reports through progress.json. The
 // lock in --index keeps it to one at a time.
 function startIndexer() {
-  const child = spawn(process.execPath, [BIN, '--index'], { detached: true, stdio: 'ignore' });
+  const child = spawn(process.execPath, [SELF, '--index'], { detached: true, stdio: 'ignore' });
   try { setPriority(child.pid, 19); } catch { /* not allowed here: run at normal priority */ }
   child.unref();
 }
@@ -1041,15 +1040,32 @@ async function main() {
   };
 
   const repos = listRepos();
-  if (repos.length === 0) {
+  // With no clone, --index and the window still reach GitHub: a new machine
+  // finds its repositories there and clones one with Enter.
+  if (values.index) return runIndex(repos, slugOf);
+  if (repos.length === 0 && (values.list || isNonInteractive)) {
     die('E_NO_MATCH', 'ghq has no repositories. Clone one with `ghq get <url>` first.');
   }
 
-  if (values.index) return runIndex(repos, slugOf);
+  const si = await searchIndex();
+  const rank = await import('../lib/rank.mjs');
+  ({ matchLabel, matchContext, LABELS, flat } = rank);
+  const docs = query ? si.readDocs(repos, slugOf) : [];
+  // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
+  // way fzf did before the index existed, so those queries still land. A
+  // subsequence of a name not cloned is no word: 2,000 org names have `alweb`.
+  const fuzzy = () => (rank.keywordRank(docs, query, { limit: Infinity }).some((h) => h.cloned || h.field !== 'fuzzy')
+    ? [] : fzfFilter(repos, query));
+  // What --json picks from and --list shows: clones only, so `path` exists
+  // (I7), and ranked alone so hundreds of org repositories cannot crowd them out.
+  const clonesFor = () => {
+    const hits = rank.keywordRank(docs.filter((d) => d.cloned), query, { limit: Infinity });
+    return hits.length ? hits : fuzzy().map((key) => ({ key }));
+  };
 
   // ── --list ────────────────────────────────────────────────────────────────
   if (values.list) {
-    const shown = query ? fzfFilter(repos, query) : repos;
+    const shown = query ? clonesFor().map((h) => h.key) : repos;
     if (shown.length === 0) die('E_NO_MATCH', `no repository matched '${query}'`);
     if (isJson) {
       process.stdout.write(JSON.stringify({
@@ -1073,20 +1089,8 @@ async function main() {
       'no terminal for the fzf UI. Pass a query to pick non-interactively, ' +
       'or use --list to see every candidate.');
   }
-  const si = await searchIndex();
-  const rank = await import('../lib/rank.mjs');
-  ({ matchLabel, matchContext, LABELS, flat } = rank);
-  const docs = query ? si.readDocs(repos, slugOf) : [];
-  // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
-  // way fzf did before the index existed, so those queries still land. A
-  // subsequence of a name not cloned is no word: 2,000 org names have `alweb`.
-  const fuzzy = () => (rank.keywordRank(docs, query, { limit: Infinity }).some((h) => h.cloned || h.field !== 'fuzzy')
-    ? [] : fzfFilter(repos, query));
   if (isNonInteractive) {
-    // Scripts and agents get a clone, always: `path` must exist (I7).
-    // Rank the clones alone: hundreds of org repositories must not crowd them out.
-    let hits = rank.keywordRank(docs.filter((d) => d.cloned), query);
-    if (hits.length === 0) hits = fuzzy().map((key) => ({ key }));
+    const hits = clonesFor();
     if (hits.length === 0) {
       const [far] = rank.keywordRank(docs.filter((d) => !d.cloned), query, { limit: 1 });
       die('E_NO_MATCH', far
