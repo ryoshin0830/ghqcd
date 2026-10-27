@@ -665,12 +665,11 @@ function progress(s) {
   }
 }
 
-// "2 h ago (10-26 18:56)", local time; the clock time is left out on request.
-function ago(at, clock = true) {
+// "2 h ago".
+function ago(at) {
   const min = (Date.now() - at) / 60000;
-  const rel = min < 1 ? 'just now' : min < 90 ? `${Math.round(min)} min ago`
+  return min < 1 ? 'just now' : min < 90 ? `${Math.round(min)} min ago`
     : min < 36 * 60 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
-  return clock ? `${rel} (${new Date(at).toLocaleString('sv-SE').slice(5, 16)})` : rel;
 }
 
 // What a refresh roughly costs, from the parts the last runs measured. How many
@@ -699,7 +698,7 @@ async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {
   const s = si.readStatus();
   const at = semantic ? s.semanticAt : s.textAt;
   const cost = refreshCost(si, semantic, true);
-  if (verbose) say(dim(`indexing ${repos.length} repositories${at ? ` · last indexed ${ago(at, false)}` : ''}${cost ? ` · ${cost}` : ''}`));
+  if (verbose) say(dim(`indexing ${repos.length} repositories${at ? ` · last indexed ${ago(at)}` : ''}${cost ? ` · ${cost}` : ''}`));
   if (!verbose) progress(`indexing ${repos.length} repositories…`);
   const release = si.lockIndex();
   try {
@@ -805,8 +804,9 @@ function statusLine(si) {
   if (running(si)) return fit(`indexing in the background: ${p.text}`, width);
   if (p?.failed) return fit(`! indexing failed: ${p.text} · ctrl-r retries`, width);
   const at = si.readStatus().textAt;
+  // Cut from the right: ctrl-r first, the one key nothing else on screen names.
   return fit([p?.hint ?? (at ? `indexed ${ago(at)}` : 'ctrl-r also searches GitHub: your repositories, READMEs and issues'),
-    'enter go', 'ctrl-o open on GitHub', 'ctrl-r refresh'].join(' · '), width);
+    'ctrl-r refresh', 'enter go', 'ctrl-o open on GitHub'].join(' · '), width);
 }
 
 let matchLabel, matchContext, LABELS, flat; // from lib/rank.mjs, loaded with the window
@@ -899,8 +899,9 @@ function clone(slug) {
 }
 
 async function searchWindow(si, repos, slugOf) {
-  const { startServer, streamResults, socketPath } = await import('../lib/serve.mjs');
-  const dir = si.privateDir(si.cacheDir());
+  const { startServer, streamResults, socketPath, socketDir } = await import('../lib/serve.mjs');
+  const cache = si.privateDir(si.cacheDir());
+  const dir = socketDir(cache);
   let docs = si.readDocs(repos, slugOf);
   let seen = JSON.stringify(si.readStatus());
   const meaning = meaningWorker();
@@ -937,6 +938,7 @@ async function searchWindow(si, repos, slugOf) {
   process.on('exit', () => {
     server.close();
     rmSync(fzfSock, { force: true });
+    if (dir !== cache) rmSync(dir, { recursive: true, force: true });
     const p = running(si);
     if (p) stderr.write(`${dim(`${PKG}: indexing continues in the background (${p.text}); the next window shows its progress`)}\n`);
   });
@@ -961,12 +963,15 @@ async function searchWindow(si, repos, slugOf) {
       '--height=40%', '--layout=reverse', '--border', '--prompt=repo> ',
       '--disabled', '--ansi', '--no-sort', '--delimiter=\t', '--with-nth=3..', '--no-hscroll',
       '--print-query', '--expect=ctrl-o,ctrl-r', `--query=${typed}`,
-      `--bind=change:reload:${CLIENT} --serve-query ${sh(socket)} {q}`,
-      `--preview=${CLIENT} --serve-preview ${sh(socket)} {1} {2} {q}`,
+      // `--`: a query such as `--init` is a query, not an option.
+      `--bind=change:reload:${CLIENT} --serve-query ${shq(socket)} -- {q}`,
+      `--preview=${CLIENT} --serve-preview ${shq(socket)} -- {1} {2} {q}`,
       '--preview-window=right,50%,wrap,border-left,<50(hidden)', '--min-height=14', '--header-lines=1',
       ...(live ? [`--footer=${status}`, `--listen=${fzfSock}`] : [`--header=${status}`]),
     ];
-    const fzf = spawn('fzf', args, { stdio: ['pipe', 'pipe', 'inherit'] });
+    // fzf runs reload and preview with $SHELL; those commands are POSIX sh,
+    // which a login shell like nu or pwsh is not.
+    const fzf = spawn('fzf', args, { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, SHELL: '/bin/sh' } });
     const ac = new AbortController();
     fzf.stdin.on('error', () => ac.abort());
     // The first list streams in exactly like a reload.
@@ -975,7 +980,7 @@ async function searchWindow(si, repos, slugOf) {
     const tick = live && setInterval(() => {
       const now = statusLine(si);
       if (now !== shown) post(`change-footer:${(shown = now)}`);
-      if (fresh()) post(`reload:${CLIENT} --serve-query ${sh(socket)} {q}`);
+      if (fresh()) post(`reload:${CLIENT} --serve-query ${shq(socket)} -- {q}`);
     }, 500);
     let out = '';
     fzf.stdout.on('data', (d) => { out += d; });
@@ -1012,10 +1017,15 @@ function meaningWorker() {
   const waiting = new Map();
   let n = 0;
   worker.on('message', ({ id, hits }) => { waiting.get(id)?.(hits); waiting.delete(id); });
-  worker.on('error', () => { for (const done of waiting.values()) done([]); waiting.clear(); });
+  // A worker that died answers nothing: every later query gets no meaning
+  // hits at once, so the code hits held behind them still show.
+  let dead = false;
+  const gone = () => { dead = true; for (const done of waiting.values()) done([]); waiting.clear(); };
+  worker.on('error', gone);
+  worker.on('exit', gone);
   return async (q, signal) => {
     const { afterPause } = await import('../lib/serve.mjs');
-    if (q.trim().length < 2 || !(await afterPause(250, signal))) return [];
+    if (dead || q.trim().length < 2 || !(await afterPause(250, signal))) return [];
     const id = ++n;
     return new Promise((resolve) => {
       waiting.set(id, resolve);

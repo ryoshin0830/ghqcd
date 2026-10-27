@@ -713,3 +713,37 @@ test('--index matches a clone to its GitHub repository whatever the case of its 
     rmSync(cache, { recursive: true, force: true });
   }
 });
+
+// The window itself, under a pty (expect), with an fzf that records how it
+// was started and leaves as Esc would. Only the arguments are checked here;
+// the UI is in CLAUDE.md's manual matrix.
+test('the window opens under a deep cache dir and passes queries that start with - safely', (t) => {
+  if (spawnSync('expect', ['-v'], { stdio: 'ignore' }).error) return t.skip('expect not installed');
+  const shims = makeShims();
+  const base = tempCache();
+  const cache = join(base, 'c'.repeat(120));
+  const out = join(base, 'fzf-args');
+  writeFileSync(join(shims, 'fzf'), `#!/bin/sh
+case "$1" in --version) echo 0.74.1; exit 0 ;; --filter*) exit 0 ;; esac
+printf '%s\\n' "$@" "SHELL=$SHELL" > '${out}'
+exit 130
+`);
+  try {
+    spawnSync('mkdir', ['-p', cache]);
+    // Fresh: no background --index from this test.
+    writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.now() }));
+    const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache };
+    delete env.FORCE_COLOR;
+    const r = spawnSync('expect', ['-c', `spawn ${process.execPath} ${BIN}; expect eof; catch wait result; exit [lindex $result 3]`], { encoding: 'utf8', env });
+    assert.equal(r.status, 130, r.stdout);
+    const args = readFileSync(out, 'utf8').split('\n');
+    const listen = args.find((a) => a.startsWith('--listen='));
+    assert.ok(listen && Buffer.byteLength(listen) - '--listen='.length < 104, listen);
+    assert.ok(args.some((a) => a.startsWith('--bind=change:reload:') && a.endsWith(' -- {q}')), 'a query starting with - is no option');
+    assert.ok(args.some((a) => a.startsWith('--preview=') && a.endsWith(' -- {1} {2} {q}')));
+    assert.ok(args.includes('SHELL=/bin/sh'), 'fzf runs our commands with a POSIX shell, whatever the login shell');
+  } finally {
+    rmSync(shims, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+  }
+});

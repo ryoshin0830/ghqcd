@@ -2,12 +2,12 @@
 // code hits appended, and nothing more once the asker has gone away.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect } from 'node:net';
 import { Writable } from 'node:stream';
-import { streamResults, startServer, queryClient, socketPath, afterPause } from '../lib/serve.mjs';
+import { streamResults, startServer, queryClient, socketPath, socketDir, afterPause } from '../lib/serve.mjs';
 
 const docs = [
   { key: '/r/apple', slug: 'github.com/a/apple', name: 'apple', cloned: true, description: 'fruit' },
@@ -87,4 +87,22 @@ test('afterPause waits, unless the query is replaced first', async () => {
   const ac = new AbortController();
   setTimeout(() => ac.abort(), 5);
   assert.equal(await afterPause(200, ac.signal), false);
+});
+
+test('socketDir: a cache dir too deep for a Unix socket gets a private one in tmpdir', async () => {
+  const base = mkdtempSync(join(tmpdir(), 'ghqcd-serve-'));
+  const deep = join(base, 'x'.repeat(150));
+  mkdirSync(deep);
+  const dir = socketDir(deep);
+  try {
+    assert.equal(socketDir(base), base, 'a short one is used as it is');
+    assert.notEqual(dir, deep);
+    assert.ok(dir.startsWith(tmpdir()));
+    assert.equal(statSync(dir).mode & 0o777, 0o700);
+    const server = await startServer(socketPath(dir), async (p, write) => write('ok'));
+    server.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+  }
 });
