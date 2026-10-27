@@ -422,6 +422,9 @@ test('--index also stores repositories you can reach but have not cloned', async
     assert.equal(zebra.issues[0].number, 2);
     assert.equal(repos[REPOS[0]].cloned, true);
     assert.equal(Object.values(repos).filter((x) => x.slug === 'github.com/alice/apple').length, 1, 'a clone is not listed twice');
+    const done = JSON.parse(readFileSync(join(cache, 'progress.json'), 'utf8'));
+    assert.equal(done.done, true, 'the window\'s status bar learns that the run finished');
+    assert.match(done.text, /^indexed 5 repositories/);
     // Repositories you only see as an org member: name and description, no README or issues.
     assert.deepEqual([repos['github.com/org/kiwi'].description, repos['github.com/org/kiwi'].readme, repos['github.com/org/kiwi'].lite], ['org repo', '', true]);
     assert.equal(repos['github.com/alice/zebra'].lite, undefined, 'your own repository keeps its README');

@@ -886,12 +886,15 @@ async function searchWindow(si, repos, slugOf) {
   let docs = si.readDocs(repos, slugOf);
   let seen = JSON.stringify(si.readStatus());
   const meaning = si.meaningSearch();
-  const noCode = async function* () {};
+  const { codeSearch } = await import('../lib/code.mjs');
+  const tokens = new Map();
+  const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
   const stream = (q, write, signal) => {
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
     if (!terms.length) return browse(docs).forEach(write);
     return streamResults({
-      query: q, docs, write, signal, code: noCode, display: (h) => display(h, terms),
+      query: q, docs, write, signal, display: (h) => display(h, terms),
+      code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
       meaning: (qq) => (SEMANTIC && qq.trim().length >= 2 ? meaning(qq) : []),
     });
   };
