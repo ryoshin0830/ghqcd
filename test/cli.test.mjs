@@ -60,7 +60,7 @@ exit 2
 function run(args, { shims, env = {} } = {}) {
   const dir = shims ?? makeShims();
   const childEnv = {
-    ...process.env, PATH: `${dir}:${process.env.PATH}`, NO_COLOR: '1', ...env,
+    ...process.env, PATH: `${dir}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', ...env,
   };
   // We force NO_COLOR; node itself warns to stderr when FORCE_COLOR is also
   // set, so a developer who exports it would otherwise see phantom failures.
@@ -339,7 +339,7 @@ test('re-sourcing is idempotent even with a stale function defined', (t) => {
 
 function runAsync(args, env) {
   const shims = makeShims();
-  const childEnv = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', ...env };
+  const childEnv = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', ...env };
   delete childEnv.FORCE_COLOR; // see run()
   const child = spawn(process.execPath, [BIN, ...args], { env: childEnv });
   let stdout = '', stderr = '';
@@ -355,13 +355,26 @@ async function fakeGitHub() {
   const issues = {
     apple: [{ number: 7, title: 'Timeout when syncing', body: 'The upload stalls after 30 seconds.' }],
     banana: [],
+    zebra: [{ number: 2, title: 'Remote issue', body: 'only on GitHub' }],
   };
+  // What `viewer.repositories` returns for the github.com token ('t'): one
+  // repository that is cloned in the shims and one that is not.
+  const viewer = [
+    { nameWithOwner: 'alice/apple', description: 'apple description', viewerPermission: 'ADMIN', pushedAt: '2026-10-01T00:00:00Z', r1: null, r2: null, r3: null },
+    { nameWithOwner: 'alice/zebra', description: 'remote only', viewerPermission: 'ADMIN', pushedAt: '2026-10-02T00:00:00Z', r1: { text: 'zebra readme' }, r2: null, r3: null },
+  ];
   const server = createServer((req, res) => {
     if (server.fail) { res.statusCode = 401; res.end(); return; }
     let body = '';
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
       const { query, variables } = JSON.parse(body);
+      if (query.includes('viewer{')) { // not viewerPermission
+        const nodes = req.headers.authorization === 'bearer t' ? viewer : [];
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ data: { viewer: { repositories: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } }));
+        return;
+      }
       const repository = query.includes('issues')
         ? { issues: { nodes: issues[variables.name] ?? [] } }
         : { description: `${variables.name} description`, viewerPermission: variables.name === 'cherry' ? 'READ' : 'ADMIN' };
@@ -388,6 +401,27 @@ test('--index refuses to run beside another --index, and takes over a dead one\'
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(existsSync(join(cache, 'index.lock')), false, 'lock released on exit');
   } finally {
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('--index also stores repositories you can reach but have not cloned', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  try {
+    const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).remote, 1);
+    const { repos } = JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8'));
+    const zebra = repos['github.com/alice/zebra'];
+    assert.equal(zebra.cloned, false);
+    assert.equal(zebra.description, 'remote only');
+    assert.equal(zebra.readme, 'zebra readme');
+    assert.equal(zebra.issues[0].number, 2);
+    assert.equal(repos[REPOS[0]].cloned, true);
+    assert.equal(Object.values(repos).filter((x) => x.slug === 'github.com/alice/apple').length, 1, 'a clone is not listed twice');
+  } finally {
+    gh.server.close();
     rmSync(cache, { recursive: true, force: true });
   }
 });
@@ -426,14 +460,14 @@ test('--index takes no query, and --issues does not combine with --semantic', ()
 test('--index stores issues of writable repos, and --issues finds a repo by its issue', async () => {
   const cache = tempCache();
   const gh = await fakeGitHub();
-  const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 't' };
+  const env = { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e' };
   try {
     const idx = await runAsync(['--index', '--json'], env);
     assert.equal(idx.status, 0, idx.stderr);
     const out = JSON.parse(idx.stdout);
     assert.equal(out.repos, 3);
-    assert.match(idx.stderr, /✓ indexed 3 repositories in \d+ s · 1 issues/, 'one receipt line ends the run');
-    assert.equal(out.issues, 1);
+    assert.match(idx.stderr, /✓ indexed 3 repositories in \d+ s · 2 issues/, 'one receipt line ends the run');
+    assert.equal(out.issues, 2, 'apple (cloned) and zebra (not cloned)');
     assert.equal(statSync(join(cache, 'index.json')).mode & 0o777, 0o600, 'issue text is private');
 
     const r = run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } });
@@ -450,8 +484,10 @@ test('--index stores issues of writable repos, and --issues finds a repo by its 
     // A rejected token keeps the issues the last run fetched.
     gh.server.fail = true;
     const bad = await runAsync(['--index', '--json'], env);
-    assert.equal(JSON.parse(bad.stdout).errors, 3);
+    assert.equal(JSON.parse(bad.stdout).errors, 2, 'one per host: a host that refused the token is not asked again per repository');
     assert.match(bad.stderr, /HTTP 401/);
+    assert.equal(JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8')).repos['github.com/alice/zebra'].readme, 'zebra readme',
+      'a repository that is not cloned survives a rejected token too');
     assert.equal(JSON.parse(run(['--issues', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } }).stdout).issue, 7);
 
     // The run is timed, and an index older than a week is pointed out, not silently used.

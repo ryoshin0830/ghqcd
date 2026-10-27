@@ -766,7 +766,7 @@ async function runIndex(repos, slugOf) {
   const t0 = Date.now();
   let res;
   try {
-    res = await refreshIndex(si, repos, slugOf, values.semantic, { verbose: true });
+    res = await refreshIndex(si, repos, slugOf, SEMANTIC, { verbose: true });
   } catch (err) {
     die(err.code ?? 'E_INDEX', err.message);
   }
@@ -775,6 +775,9 @@ async function runIndex(repos, slugOf) {
   if (isJson) process.stdout.write(JSON.stringify({ schemaVersion: SCHEMA_VERSION, ...res }) + '\n');
   else say(dim(`  cache: ${res.cache}`));
 }
+
+// Meaning search is on by default; GHQCD_SEMANTIC=0 skips the model (1.2 GB) and the vectors.
+const SEMANTIC = process.env.GHQCD_SEMANTIC !== '0';
 
 // Nothing refreshes the index behind the user's back (it reads private issues).
 // The picker's header shows its age; without a picker, an old one is pointed out.
@@ -980,8 +983,8 @@ async function main() {
 }
 
 main().then(() => {
-  // The WebAssembly runtime keeps worker threads alive after the last query.
-  if (values.semantic) process.exit(0);
+  // The WebAssembly runtime keeps worker threads alive after the last query or index run.
+  if (values.semantic || values.index) process.exit(0);
 }).catch((err) => {
   disengageRawMode();
   restoreCursor();
