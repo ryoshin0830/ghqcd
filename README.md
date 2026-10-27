@@ -139,15 +139,17 @@ yellow for code. The preview (at 100 columns and wider) starts with what matched
 and how — `matched issue #12 by the words typed`, `matched the README by meaning
 (similarity 0.56)` — followed by the matched lines in place.
 
-Every word must match somewhere. Name hits appear as you type; meaning and code
-hits are added below them as they arrive.
+Every word must match somewhere. Name hits appear as you type; code hits are
+added below them as they arrive. Vector (meaning) search is off by default;
+Shift+Tab enables it and adds meaning hits before code hits.
 
 | Key | Does |
 | --- | --- |
 | type | search |
 | Enter | go to the repository — `ghq get` first if it is not cloned |
 | ctrl-o | open it on GitHub (the issue, or the file, when that is what matched) |
-| ctrl-r | refresh the index now; the window stays open and the bar says how long it has run (`refreshing 40 s / ~2 min: …`), then what it found |
+| ctrl-r | refresh the index now; the window stays open and shows the current phase, progress and estimated time remaining |
+| Shift+Tab | turn vector search on or off; keep the query and all downloaded models and built vectors |
 | Esc | leave (exit 130, nothing printed) |
 
 `ghqcd <query>` still lands without the window when the match is clear: one
@@ -159,15 +161,23 @@ is matched against the clone paths by fzf, as before.
 
 The window keeps its index fresh by itself: when the index is missing or a day
 old, it starts `ghqcd --index` in the background (detached, at low priority),
-and the bar at the bottom shows what it is doing:
+and the bar shows when it was last updated (`updated 2 h ago`). During an
+update it shows the current phase. Phases with a known total get a progress
+bar; vector processing also estimates how long remains:
 
 ```
-indexing in the background: embedding 412 of 1,800 · about 12 min left
+vectors [##--------] 25% 210/852 · ~20 min left
+shift-tab vectors ON · ctrl-r refresh · enter go
 ```
 
-Closing the window does not stop it; the next window shows where it got to.
-An interrupted run resumes where it stopped. `ghqcd --index` does the same in
-the foreground. Only one index run happens at a time.
+Fetching repository lists has no fixed total, so it shows what is being read
+without a percentage. Percentages describe the current phase, not the whole
+refresh. The shortcut and vector mode stay visible on a separate line.
+
+Closing the window does not stop a background update; the next window shows
+where it got to. An interrupted run resumes where it stopped. `ghqcd --index`
+refreshes text in the foreground; `GHQCD_SEMANTIC=1 ghqcd --index` also builds
+vectors. Only one index run happens at a time.
 
 The index reads, through the GitHub API (`GH_TOKEN` / `GITHUB_TOKEN`,
 `GH_ENTERPRISE_TOKEN` for the `GH_HOST` host only, or `gh auth token`):
@@ -184,8 +194,11 @@ because it holds issue text from private repositories.
 
 ### Meaning search: what gets installed
 
-Meaning search is on by default. Nothing is added to ghqcd's own dependencies;
-the first index run installs, into the cache directory:
+Vector search is off when a window starts. Press Shift+Tab to enable it for
+that window, or use `GHQCD_SEMANTIC=1 ghqcd` to start with it enabled. The first
+time it is enabled, the window builds any missing vectors in the background.
+Nothing is added to ghqcd's own dependencies; vector indexing installs, into
+the cache directory:
 
 - **runtime** — `onnxruntime-web` and `@huggingface/tokenizers`, at the exact
   versions in [`lib/runtime/package-lock.json`](lib/runtime/package-lock.json),
@@ -196,9 +209,11 @@ the first index run installs, into the cache directory:
   [onnx-community/Qwen3-Embedding-0.6B-ONNX](https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX),
   checked against SHA-256 hashes in the source.
 
-While the window is open, the loaded model holds about 4 GB of memory (it is
-released when the window closes). `GHQCD_SEMANTIC=0` leaves the runtime, the
-model and that memory out. The first embedding pass is the slow part:
+While enabled, the loaded search model holds about 4 GB of memory. Shift+Tab
+turns it off, releases the search worker, and pauses a vector update started
+by that window. The downloaded model and completed vectors stay on disk for
+the next time you enable it. A separately started index command keeps running.
+The first embedding pass is the slow part:
 55 repositories with 1,571 issues made 1,796 chunks and took 37 minutes on an
 Apple M4 Pro. Later runs compare each README and issue with the last run by
 SHA-256 and embed only what changed; with nothing changed, a refresh takes as

@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Buffer } from 'node:buffer';
 import { fileURLToPath } from 'node:url';
+import { ago, indexStatus } from '../lib/status.mjs';
 
 // Read from package.json rather than a hand-maintained constant: `npm version`
 // only bumps the manifest, so a literal here silently drifts and `--version`
@@ -45,21 +46,23 @@ EXAMPLES
   ${PKG} --list                 every repository path, one per line
   ${PKG} --json alchemy         machine-readable best match
   ${PKG} --quiet alchemy        path only — \`cd "$(${PKG} --quiet alchemy)"\`
-  ${PKG} "把长网址缩短"           also finds what a README or issue means, any language
+  ${PKG} "把长网址缩短"           Shift+Tab also searches by meaning, any language
 
 THE SEARCH WINDOW
   One window searches the repositories you have cloned and the ones you can
   reach on GitHub (and GitHub Enterprise hosts ghq knows): by name first, then
   description, README, issues, meaning (any language) and code. Enter goes to
   the repository, cloning it first if needed; ctrl-o opens it on GitHub;
-  ctrl-r refreshes the index. The bar at the bottom shows indexing progress.
+  ctrl-r refreshes the index; Shift+Tab toggles vector search (off by default).
+  The bar shows when the index was updated, or progress and time remaining.
 
   The index lives under ${'$'}XDG_CACHE_HOME/ghqcd (default ~/.cache/ghqcd),
   readable only by you. It holds README and issue text read through the
   GitHub API (GH_TOKEN / GITHUB_TOKEN, or \`gh auth token\`), and for meaning
   search a pinned WebAssembly runtime and model (Qwen3-Embedding-0.6B fp16,
-  about 1.2 GB, downloaded once), which holds about 4 GB of memory while the
-  window is open. GHQCD_SEMANTIC=0 leaves the model out.
+  about 1.2 GB, downloaded once), which holds about 4 GB of memory while enabled.
+  Disabling releases that memory and keeps the model and vectors for reuse.
+  GHQCD_SEMANTIC=1 opts in at launch or when running --index.
   Code queries for repositories that are not cloned go to GitHub's code search.
 
 WHY --init
@@ -125,6 +128,7 @@ try {
       'serve-query': { type: 'string' },
       'serve-preview': { type: 'string' },
       'serve-refresh': { type: 'string' }, // fzf's ctrl-r: refresh without closing the window
+      'serve-toggle-vectors': { type: 'string' },
       json: { type: 'boolean' },
       quiet: { type: 'boolean' },
       'no-color': { type: 'boolean' },
@@ -137,12 +141,12 @@ try {
   emitEarlyError(err.message);
 }
 
-const serve = values['serve-query'] ?? values['serve-preview'] ?? values['serve-refresh'];
+const serve = values['serve-query'] ?? values['serve-preview'] ?? values['serve-refresh'] ?? values['serve-toggle-vectors'];
 if (serve != null) {
   const { queryClient } = await import('../lib/serve.mjs');
   await queryClient(serve, values['serve-query'] != null ? { q: positionals.join(' ') }
     : values['serve-preview'] != null ? { preview: positionals[0] ?? '', meta: positionals[1] ?? '', q: positionals.slice(2).join(' ') }
-    : { refresh: true });
+    : values['serve-refresh'] != null ? { refresh: true } : { toggleVectors: true });
   process.exit(0);
 }
 
@@ -668,40 +672,24 @@ function progress(s) {
   }
 }
 
-// "2 h ago".
-function ago(at) {
-  const min = (Date.now() - at) / 60000;
-  return min < 1 ? 'just now' : min < 90 ? `${Math.round(min)} min ago`
-    : min < 36 * 60 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
-}
-
-// What a refresh roughly costs, from the parts the last runs measured. How many
-// READMEs and issues changed is unknown until GitHub has been asked, so the
-// long form adds that part as a rate; the progress line then gives the real ETA.
-function refreshCost(si, semantic, long) {
-  const s = si.readStatus();
-  if (!s.textSeconds) return '';
-  const quiet = `~${si.duration(s.textSeconds)}`;
-  if (!semantic || !s.secondsPerChunk || !long) return quiet;
-  return `${quiet} if nothing changed, else ~${si.duration(s.textSeconds + s.loadSeconds)} + ~${si.duration(s.secondsPerChunk)} per change`;
-}
-
 // Throws; the caller decides whether a failure ends the program.
 async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {}) {
   const t0 = Date.now();
+  const s = si.readStatus();
   // The window's status bar reads this, at most twice a second.
   let wrote = 0, hinted = !verbose;
-  const report = (s) => {
+  const report = (text, details = {}) => {
     // Said once, and only to someone who can press ctrl-c: not to the window,
     // whose indexer runs on in the background.
-    if (!hinted && s.startsWith('embedding') && / min left/.test(s)) { hinted = true; say(dim('ctrl-c stops; the next run resumes where it stopped')); }
-    progress(s);
-    if (Date.now() - wrote > 500) { wrote = Date.now(); si.writeProgress({ text: s, since: t0 }); }
+    if (!hinted && text.startsWith('embedding') && / min left/.test(text)) { hinted = true; say(dim('ctrl-c stops; the next run resumes where it stopped')); }
+    progress(text);
+    if (Date.now() - wrote > 500) {
+      wrote = Date.now();
+      si.writeProgress({ text, since: t0, ...details });
+    }
   };
-  const s = si.readStatus();
   const at = semantic ? s.semanticAt : s.textAt;
-  const cost = refreshCost(si, semantic, true);
-  if (verbose) say(dim(`indexing ${repos.length} repositories${at ? ` · last indexed ${ago(at)}` : ''}${cost ? ` · ${cost}` : ''}`));
+  if (verbose) say(dim(`indexing ${repos.length} repositories${at ? ` · last updated ${ago(at)}` : ''}`));
   if (!verbose) progress(`indexing ${repos.length} repositories…`);
   const release = si.lockIndex();
   try {
@@ -757,8 +745,8 @@ async function runIndex(repos, slugOf) {
   else say(dim(`  cache: ${res.cache}`));
 }
 
-// Meaning search is on by default; GHQCD_SEMANTIC=0 skips the model (1.2 GB) and the vectors.
-const SEMANTIC = process.env.GHQCD_SEMANTIC !== '0';
+// Opt in at launch, or with Shift+Tab in the window. Cached models/vectors stay.
+const SEMANTIC = process.env.GHQCD_SEMANTIC === '1';
 
 // The window refreshes the index once a day, in the background. --json and
 // --list never do, so there an old index is pointed out instead.
@@ -791,37 +779,33 @@ function liveFzf(dir) {
 // lock in --index keeps it to one at a time. Its first report comes only once
 // GitHub has answered (5-10 s for a page of READMEs), so the bar says
 // "starting" at once: ctrl-r used to look like it did nothing.
-function startIndexer(si) {
-  const child = spawn(process.execPath, [SELF, '--index'], { detached: true, stdio: 'ignore' });
+function startIndexer(si, semantic) {
+  const child = spawn(process.execPath, [SELF, '--index'], {
+    detached: true, stdio: 'ignore', env: { ...process.env, GHQCD_SEMANTIC: semantic ? '1' : '0' },
+  });
   try { setPriority(child.pid, 19); } catch { /* not allowed here: run at normal priority */ }
   child.unref();
   si.writeProgress({ pid: child.pid, since: Date.now(), text: 'starting' });
+  return child;
 }
 const running = (si) => {
   const p = si.readProgress();
+  const pid = si.indexPid();
+  // A contender's "starting" can race the lock holder's next progress report.
+  if (pid && (p?.pid !== pid || p.done)) return { pid, text: 'updating index' };
   return p && !p.done && si.alive(p.pid) ? p : null;
 };
-const stale = (si) => si.needsRefresh(si.readStatus(), si.readProgress(), Date.now(), SEMANTIC);
+const stale = (si, semantic) => si.needsRefresh(si.readStatus(), si.readProgress(), Date.now(), semantic);
 
 // The status bar: what the index is doing, else how old it is and the keys.
-function statusLine(si) {
+function statusLine(si, semantic) {
   const p = si.readProgress();
   // The bar sits under the list: half the width while the preview shows.
   const cols = stderr.columns || 80;
   const width = (cols >= 100 ? Math.floor(cols / 2) : cols) - 4;
-  // How long it has run and roughly how long the last one took: a refresh
-  // reads every repository list and can take minutes.
-  if (running(si)) {
-    const cost = refreshCost(si, SEMANTIC, false);
-    return fit(`refreshing${p.since ? ` ${si.duration((Date.now() - p.since) / 1000)}${cost ? ` / ${cost}` : ''}` : ''}: ${p.text}`, width);
-  }
-  if (p?.failed) return fit(`! indexing failed: ${p.text} · ctrl-r retries`, width);
-  const at = si.readStatus().textAt;
-  // A run that just finished says what it did, and which host it could not read.
-  const head = p?.hint ?? (p?.done && Date.now() - p.at < 60e3 ? p.text
-    : at ? `indexed ${ago(at)}` : 'ctrl-r also searches GitHub: your repositories, READMEs and issues');
-  // Cut from the right: ctrl-r first, the one key nothing else on screen names.
-  return fit([head, 'ctrl-r refresh', 'enter go', 'ctrl-o open on GitHub'].join(' · '), width);
+  const head = indexStatus(si.readStatus(), running(si) || (p?.done ? p : null));
+  return [head, `shift-tab vectors ${semantic ? 'ON' : 'OFF'} · ctrl-r refresh · enter go · ctrl-o GitHub`]
+    .map((line) => fit(line, width)).join('\n');
 }
 
 let matchLabel, matchContext, LABELS, flat; // from lib/rank.mjs, loaded with the window
@@ -919,7 +903,48 @@ async function searchWindow(si, repos, slugOf) {
   const dir = socketDir(cache);
   let docs = si.readDocs(repos, slugOf);
   let seen = JSON.stringify(si.readStatus());
-  const meaning = meaningWorker();
+  let semantic = SEMANTIC;
+  let worker;
+  const meaning = async (q, signal) => {
+    if (!semantic) return [];
+    const active = worker ??= meaningWorker();
+    const hits = await active(q, signal);
+    return semantic && worker === active ? hits : [];
+  };
+  let ownIndexer;
+  const startRefresh = () => {
+    if (running(si) || ownIndexer) return;
+    const child = startIndexer(si, semantic);
+    ownIndexer = { child, semantic };
+    child.once('exit', (code, signal) => {
+      if (ownIndexer?.child !== child) return;
+      const cancelled = ownIndexer.cancelled;
+      ownIndexer = null;
+      if (cancelled && si.readProgress()?.pid === child.pid) {
+        si.writeProgress({ pid: child.pid, done: true, text: 'vector update paused; progress saved' });
+      } else if ((code || signal) && !si.indexPid()) {
+        const p = si.readProgress();
+        if (p?.pid === child.pid && !p.done) {
+          si.writeProgress({ pid: child.pid, done: true, failed: true, text: `indexer stopped (${signal || `exit ${code}`})` });
+        }
+      }
+    });
+  };
+  const toggleVectors = () => {
+    semantic = !semantic;
+    if (!semantic) {
+      worker?.close();
+      worker = undefined;
+      if (ownIndexer?.semantic && !ownIndexer.cancelled) {
+        ownIndexer.cancelled = true;
+        try {
+          // Include a synchronous npm install's children, so shutdown can finish.
+          if (process.platform === 'win32') ownIndexer.child.kill('SIGTERM');
+          else process.kill(-ownIndexer.child.pid, 'SIGTERM');
+        } catch { /* it already finished */ }
+      }
+    } else if (stale(si, semantic)) startRefresh();
+  };
   const { codeSearch } = await import('../lib/code.mjs');
   const tokens = new Map();
   const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
@@ -933,7 +958,7 @@ async function searchWindow(si, repos, slugOf) {
       return browse(docs).forEach(write);
     }
     // A legend for the label column, and what is still on its way.
-    write(`\t||\t${dim(`“${q}” · ${Object.keys(LABELS).join(' ')} code: the words typed${SEMANTIC ? ' · ~: by meaning, follows' : ''}`)}`);
+    write(`\t||\t${dim(`“${q}” · ${Object.keys(LABELS).join(' ')} code: the words typed${semantic ? ' · ~: by meaning, follows' : ''}`)}`);
     return streamResults({
       query: q, docs, write, signal, display: (h) => display(h, terms),
       code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
@@ -942,12 +967,13 @@ async function searchWindow(si, repos, slugOf) {
   };
   const server = await startServer(socketPath(dir), async (p, write, signal) => {
     // ctrl-r: the bar picks the run up on its next tick, within 0.5 s.
-    if (p.refresh) return void (running(si) || startIndexer(si));
+    if (p.refresh) return void startRefresh();
+    if (p.toggleVectors) return void toggleVectors();
     if (p.preview != null) return preview(docs, p.preview, p.meta ?? '', p.q ?? '').forEach(write);
     return stream(String(p.q ?? ''), write, signal);
   });
   const socket = socketPath(dir);
-  if (stale(si) && !running(si)) startIndexer(si);
+  if (stale(si, semantic)) startRefresh();
   const live = liveFzf(dir);
   const fzfSock = join(dir, `fzf-${process.pid}.sock`);
   // A Ctrl-C during the clone after the window must still clean up. Only
@@ -958,6 +984,7 @@ async function searchWindow(si, repos, slugOf) {
   // background index run is mentioned so a first 1.2 GB download is not a secret.
   process.on('exit', () => {
     server.close();
+    worker?.close();
     rmSync(fzfSock, { force: true });
     if (dir !== cache) rmSync(dir, { recursive: true, force: true });
     const p = running(si);
@@ -979,7 +1006,7 @@ async function searchWindow(si, repos, slugOf) {
   let typed = query;
   for (;;) {
     fresh();
-    const status = statusLine(si);
+    const status = statusLine(si, semantic);
     const args = [
       '--height=40%', '--layout=reverse', '--border', '--prompt=repo> ',
       '--disabled', '--ansi', '--no-sort', '--delimiter=\t', '--with-nth=3..', '--no-hscroll',
@@ -989,8 +1016,10 @@ async function searchWindow(si, repos, slugOf) {
       `--preview=${CLIENT} --serve-preview ${shq(socket)} -- {1} {2} {q}`,
       '--preview-window=right,50%,wrap,border-left,<50(hidden)', '--min-height=14', '--header-lines=1',
       // A live fzf refreshes in place; an old one closes, refreshes here and reopens.
-      ...(live ? ['--expect=ctrl-o', `--bind=ctrl-r:execute-silent:${CLIENT} --serve-refresh ${shq(socket)}`, `--footer=${status}`, `--listen=${fzfSock}`]
-        : ['--expect=ctrl-o,ctrl-r', `--header=${status}`]),
+      ...(live ? ['--expect=ctrl-o', `--bind=ctrl-r:execute-silent:${CLIENT} --serve-refresh ${shq(socket)}`,
+        `--bind=shift-tab:execute-silent(${CLIENT} --serve-toggle-vectors ${shq(socket)})+reload(${CLIENT} --serve-query ${shq(socket)} -- {q})`,
+        `--footer=${status}`, `--listen=${fzfSock}`]
+        : ['--expect=ctrl-o,ctrl-r,shift-tab', `--header=${status}`]),
     ];
     // fzf runs reload and preview with $SHELL; those commands are POSIX sh,
     // which a login shell like nu or pwsh is not.
@@ -1000,10 +1029,14 @@ async function searchWindow(si, repos, slugOf) {
     // The first list streams in exactly like a reload.
     Promise.resolve(stream(typed, (l) => fzf.stdin.write(`${l}\n`), ac.signal)).finally(() => fzf.stdin.end());
     let shown = status;
-    const tick = live && setInterval(() => {
-      const now = statusLine(si);
+    const tick = setInterval(() => {
+      // Enabling during a text refresh catches up as soon as its lock is free.
+      if (semantic && stale(si, semantic)) startRefresh();
+      const changed = fresh();
+      if (!live) return;
+      const now = statusLine(si, semantic);
       if (now !== shown) post(`change-footer:${(shown = now)}`);
-      if (fresh()) post(`reload:${CLIENT} --serve-query ${shq(socket)} -- {q}`);
+      if (changed) post(`reload:${CLIENT} --serve-query ${shq(socket)} -- {q}`);
     }, 500);
     let out = '';
     fzf.stdout.on('data', (d) => { out += d; });
@@ -1017,10 +1050,11 @@ async function searchWindow(si, repos, slugOf) {
     const [k, meta = ''] = line.split('\t');
     const doc = docs.find((d) => d.key === k);
     typed = q;
+    if ((code === 0 || code === 1) && key === 'shift-tab') { toggleVectors(); continue; }
     if ((code === 0 || code === 1) && key === 'ctrl-r') {
       if (running(si)) continue;
       // Old fzf cannot show a background run, so refresh here, then reopen.
-      try { await refreshIndex(si, repos, slugOf, SEMANTIC); } catch (err) { say(`${red(`${PKG}:`)} refresh failed: ${err.message}`); }
+      try { await refreshIndex(si, repos, slugOf, semantic); } catch (err) { say(`${red(`${PKG}:`)} refresh failed: ${err.message}`); }
       continue;
     }
     if ((code === 0 || code === 1) && key === 'ctrl-o') { if (doc) openUrl(urlOf(doc, meta)); continue; }
@@ -1034,7 +1068,6 @@ async function searchWindow(si, repos, slugOf) {
 // The window's meaning search: on a worker thread, 250 ms after typing stops,
 // and only for the query still on screen.
 function meaningWorker() {
-  if (!SEMANTIC) return async () => [];
   const worker = new Worker(new URL('../lib/meaning-worker.mjs', import.meta.url), { workerData: { env: process.env } });
   worker.unref();
   const waiting = new Map();
@@ -1046,7 +1079,7 @@ function meaningWorker() {
   const gone = () => { dead = true; for (const done of waiting.values()) done([]); waiting.clear(); };
   worker.on('error', gone);
   worker.on('exit', gone);
-  return async (q, signal) => {
+  const query = async (q, signal) => {
     const { afterPause } = await import('../lib/serve.mjs');
     if (dead || q.trim().length < 2 || !(await afterPause(250, signal))) return [];
     const id = ++n;
@@ -1056,6 +1089,8 @@ function meaningWorker() {
       worker.postMessage({ id, query: q });
     });
   };
+  query.close = () => { gone(); worker.terminate(); };
+  return query;
 }
 
 // ── main flow ────────────────────────────────────────────────────────────────
