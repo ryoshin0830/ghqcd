@@ -167,12 +167,14 @@ bar; vector processing also estimates how long remains:
 
 ```
 vectors [##--------] 25% 210/852 · ~20 min left
-shift-tab vectors ON · ctrl-r refresh · enter go
+vectors: ON (enabled) · shift-tab: disable
 ```
 
 Fetching repository lists has no fixed total, so it shows what is being read
 without a percentage. Percentages describe the current phase, not the whole
-refresh. The shortcut and vector mode stay visible on a separate line.
+refresh. A separate line names the current vector state and the action for
+Shift+Tab: `vectors: OFF (disabled) · shift-tab: enable`, or
+`vectors: ON (enabled) · shift-tab: disable`.
 
 Closing the window does not stop a background update; the next window shows
 where it got to. An interrupted run resumes where it stopped. `ghqcd --index`
