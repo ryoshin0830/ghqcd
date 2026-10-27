@@ -7,9 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { codeSearch } from '../lib/code.mjs';
 
-function repo() {
+function repo(files = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'ghqcd-code-'));
   writeFileSync(join(dir, 'a.js'), 'const x = 1;\nfunction hello_world() {}\n');
+  for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
   const git = (...a) => spawnSync('git', ['-C', dir, ...a], { stdio: 'ignore' });
   git('init', '-q'); git('add', '.'); git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
   return dir;
@@ -60,6 +61,17 @@ test('a slow local search prints no Node warning into the window', async () => {
     await new Promise((r) => setTimeout(r, 20));
     process.off('warning', onWarn);
     assert.deepEqual(warnings, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the README is not code: its line already shows above, as a readme hit', async () => {
+  const dir = repo({ 'README.md': '# x\ncall hello_world to start\n' });
+  try {
+    const docs = [{ key: dir, slug: 'github.com/a/x', cloned: true }];
+    const hits = await collect(codeSearch({ docs, query: 'hello_world', signal: new AbortController().signal }));
+    assert.deepEqual(hits.map((h) => h.loc), ['a.js:2']);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
