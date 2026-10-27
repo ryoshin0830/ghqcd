@@ -95,7 +95,7 @@ add `test/window.test.mjs` PTY coverage and update this plan's checkboxes.
 - [x] Run `npm test`, `npm pack --dry-run`, and `git diff --check`.
 - [x] Review the whole diff and callers using ponytail-review and Superpowers
   requesting-code-review; fix concrete findings and rerun affected checks.
-- [ ] Commit on `feat/refresh-status-vector-toggle`, push only that branch,
+- [x] Commit on `feat/refresh-status-vector-toggle`, push only that branch,
   and create a PR against main with the gh-pr-body file workflow. Verify the
   published PR title/body/head and report test evidence plus any limits.
 
@@ -126,3 +126,5 @@ docker run --rm --network none ghqcd-e2e
 
 The simple footer formatter does not retain an extra previous-index timestamp:
 active progress replaces age, and idle status reads the existing `textAt`.
+
+Delivered as PR #4: https://github.com/ryoshin0830/ghqcd/pull/4
