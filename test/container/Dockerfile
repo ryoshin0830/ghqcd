@@ -9,5 +9,7 @@ COPY package.json README.md LICENSE .npmignore ./
 COPY bin ./bin
 COPY lib ./lib
 COPY test ./test
+COPY scripts ./scripts
+COPY docs/research/semantic-calibration ./docs/research/semantic-calibration
 ENV TERM=xterm-256color GHQCD_E2E_REQUIRED=1
 CMD ["npm", "test"]

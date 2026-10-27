@@ -1,0 +1,63 @@
+{
+  "queriesHash": "025f73f805cd2214d54a05070d1c65320454a72b1ec1c7499c3b451114c4fab8",
+  "corpusHash": "fe09e61470a31f1079375621ca4e8a9cbda434ea87e1f5d4a2b95eb9fa1a1efb",
+  "scoresHash": "4701a7fe7eed835c331a67ac2f2930fd23f41ce33ea55e72f6af3d81dca71b6f",
+  "modelKey": "qwen3-embedding-0.6b-fp16-c25a394",
+  "threshold": 0.45,
+  "shortThreshold": 0.4,
+  "maxGap": 0.01,
+  "calibration": {
+    "queries": 138,
+    "tp": 106,
+    "fp": 12,
+    "fn": 26,
+    "precision": 0.8983050847457628,
+    "recall": 0.803030303030303,
+    "f1": 0.848,
+    "negatives": 30,
+    "negativeErrors": 0,
+    "negativeFalsePositiveRate": 0
+  },
+  "candidateFloors": [
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7
+  ],
+  "candidateShortFloors": [
+    0.3,
+    0.35,
+    0.4,
+    0.45
+  ],
+  "candidateMaxGaps": [
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.08,
+    0.09,
+    0.1,
+    0.11,
+    0.12,
+    0.13,
+    0.14,
+    0.15,
+    0.16,
+    0.17,
+    0.18,
+    0.19,
+    0.2
+  ],
+  "selectionRule": "Maximize calibration micro F1; require known Chinese regressions. NFKC short query: <=12 Unicode characters or ASCII <=3 words. Coarse floors, positive gaps permit close runners-up. Tie: precision, higher long floor, higher short floor, smaller gap.",
+  "unconstrainedThreshold": 0.55,
+  "requiredRegressionIds": [
+    "encrypt.zh.short",
+    "encrypt.zh.file"
+  ]
+}

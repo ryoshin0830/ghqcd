@@ -125,3 +125,27 @@ test('every field a keyword hit can report has a label in LABELS', () => {
   }
   assert.deepEqual([...fields].sort(), ['description', 'fuzzy', 'issue', 'name', 'readme', 'slug']);
 });
+test('meaning cutoff is inclusive, ranks by score and keeps at most 20 repositories', async () => {
+  const { selectMeaningHits } = await import('../lib/rank.mjs');
+  const hits = [{ key: 'miss', score: 0.4099 }, { key: 'boundary', score: 0.41 }, { key: 'best', score: 0.8 }];
+  assert.deepEqual(selectMeaningHits(hits, { minScore: 0.41, maxGap: Infinity }).map((h) => h.key), ['best', 'boundary']);
+  assert.equal(selectMeaningHits(Array.from({ length: 25 }, (_, i) => ({ key: String(i), score: 0.5 })), { minScore: 0.4 }).length, 20);
+});
+
+test('relative cutoff keeps a low-scoring leader and removes weak followers of a high-scoring leader', async () => {
+  const { selectMeaningHits } = await import('../lib/rank.mjs');
+  const policy = { minScore: 0.4, maxGap: 0.1 };
+  assert.deepEqual(selectMeaningHits([{ key: 'fumi', score: 0.410017 }, { key: 'weak', score: 0.3 }], policy).map((h) => h.key), ['fumi']);
+  assert.deepEqual(selectMeaningHits([{ key: 'best', score: 0.8 }, { key: 'weak', score: 0.5 }], policy).map((h) => h.key), ['best']);
+  assert.deepEqual(selectMeaningHits([], policy), []);
+  assert.deepEqual(selectMeaningHits([{ key: 'unrelated', score: 0.39 }], policy), []);
+});
+
+test('only short queries get the calibrated lower floor', async () => {
+  const { selectMeaningHits, isShortMeaningQuery } = await import('../lib/rank.mjs');
+  for (const q of ['加密', '暗号化', 'encrypt', 'ｅｎｃｒｙｐｔ', 'repository picker']) assert.equal(isShortMeaningQuery(q), true, q);
+  for (const q of ['', '扫描电脑文件中的恶意软件和病毒', 'detect malicious software in a downloaded executable']) assert.equal(isShortMeaningQuery(q), false, q);
+  const hits = [{ key: 'candidate', score: 0.41 }];
+  assert.equal(selectMeaningHits(hits, { query: '加密' }).length, 1);
+  assert.equal(selectMeaningHits(hits, { query: 'detect malicious software in a downloaded executable' }).length, 0);
+});

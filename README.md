@@ -143,6 +143,10 @@ Every word must match somewhere. Name hits appear as you type; code hits are
 added below them as they arrive. Vector (meaning) search is off by default;
 Shift+Tab enables it and adds meaning hits before code hits.
 
+Meaning search uses a lower cutoff for short search terms and keeps candidates
+close to the best match. See the [real-model precision/recall evaluation](docs/research/semantic-calibration/README.md)
+for the measured tradeoffs. This filtering change reuses existing vectors.
+
 | Key | Does |
 | --- | --- |
 | type | search |
