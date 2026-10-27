@@ -239,9 +239,16 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   port: fzf 0.38 has no API key, and any local user could make it run
   commands). The window's fzf is spawned asynchronously — the parent must keep
   answering the socket while fzf runs.
+- **Meaning search runs on a worker thread** (`lib/meaning-worker.mjs`), 250 ms
+  after typing stops, only for the query still on screen. ORT's `run()` and
+  the model load never yield; on the main thread they held up every
+  keystroke's name hits. Each answer starts with one header line
+  (`--header-lines=1`): fzf keeps the old list until a line arrives.
 - **Fast path:** `ghqcd <q>` lands without the window on a unique clone matched
-  by name, slug or subsequence (what fzf matched on the path before), else on a
-  unique not-cloned name match (cloned first). Keep `ghqcd api` landing.
+  by name, slug or subsequence (what fzf matched on the path before) unless a
+  not-cloned repository matches its name better, else on a unique not-cloned
+  name match (cloned first): `landing()` in `lib/rank.mjs`. Keep `ghqcd api`
+  landing.
 - **Clone on Enter:** `ghq get https://<slug>` with ghq's output on stderr
   (I1), then `ghq list -e -p <slug>`.
 - **The index refreshes itself:** the window starts a detached, nice-19
