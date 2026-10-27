@@ -54,28 +54,23 @@ silently break the flow):
 npx -y ghqcd@^0.1 --json <query>
 ```
 
-When the user describes what a repository *does* rather than its name — in any
-language — and `ghqcd --index --semantic` has been run:
+`--json` ranks clones by where the words match: name, then description, then
+README, then issues (once an index exists). So a word from what a repository
+*does*, or from an issue the user remembers, also works:
 
 ```bash
-ghqcd --semantic --json "the tool that syncs AI skills across machines"
+ghqcd --json "upload stalls"
 ```
 
-The payload adds `"score"` (cosine of the best chunk, minus 0.1 for issue
-chunks; higher is closer). `matches` is the number
-of ranked repositories, so it is always > 1 here; treat the result as a
-suggestion and confirm with the user before acting on it.
+The payload adds `"issue": <number>` when an issue matched rather than the
+name. Meaning search (any language) and code search exist only in the
+interactive window, not in `--json`.
 
-When the user remembers an issue rather than the repository:
-
-```bash
-ghqcd --issues --json "upload stalls"
-```
-
-The payload adds `"issue": <number>` when an issue line won. Both modes exit 1
-with `E_INDEX` when no index exists: tell the user to run `ghqcd --index`
-(or `ghqcd --index --semantic`, which downloads ~1.2 GB once). Do not run it
-yourself unasked — it reads private issues through the GitHub API.
+`--json` only ever returns a clone, so `path` always exists. When the best match
+is a repository that is not cloned, it exits 2 (`E_NO_MATCH`) and the message
+names the `ghq get https://…` command: offer to run it. It never starts an index
+run; do not run `ghqcd --index` yourself unasked — it reads private repositories
+and issues through the GitHub API and, the first time, downloads a 1.2 GB model.
 
 To enumerate instead of picking:
 
@@ -130,7 +125,7 @@ best-guess path can run commands in the wrong repository.
 | `E_VALIDATION`  | 1    | flag conflict or extra positional                |
 | `E_GHQ`         | 1    | `ghq list -p` failed                             |
 | `E_FZF`         | 1    | fzf could not be run                             |
-| `E_INDEX`       | 1    | no index for --issues / --semantic, or --index failed |
+| `E_INDEX`       | 1    | `--index` failed, or another one is running      |
 | `E_NO_MATCH`    | 2    | no repositories, or the query matched none       |
 | `E_AMBIGUOUS`   | 3    | called without a query and without a TTY         |
 | `E_DEPS`        | 127  | `ghq` or `fzf` missing                           |

@@ -87,89 +87,117 @@ ghqcd [options] [<query>]
 | --- | --- |
 | `--init <shell>` | print shell integration for `zsh` \| `bash` \| `fish` |
 | `--cmd <name>` | function name emitted by `--init` (default: `ghqcd`) |
-| `--query <q>` | initial fzf query (same as the positional) |
-| `--list` | print every candidate instead of picking one |
-| `--issues` | also search issue titles and bodies (needs `--index`) |
-| `--semantic` | rank by meaning, in any language (needs `--index --semantic`) |
-| `--index` | collect README, description and issues into the cache; with `--semantic`, embed them too |
-| `--json` | stdout = 1-line JSON, never opens the fzf UI |
+| `--query <q>` | initial query (same as the positional) |
+| `--list` | print every cloned repository instead of picking one |
+| `--index` | refresh the search index now (the window does it by itself, in the background) |
+| `--json` | stdout = 1-line JSON, never opens the UI |
 | `--quiet` | stdout = path only |
 | `--no-color` | disable ANSI colors (also respects `NO_COLOR`) |
 | `-h`, `--help` | show help |
 | `-V`, `--version` | show version |
 
-A query pre-filters fzf and auto-selects a unique match, so `ghqcd api` usually
-lands without a keystroke.
+## One search window
 
-## Searching issues, and searching by meaning
+`ghqcd` opens one window that searches everything at once, like a search
+engine: the repositories you have cloned, your repositories on GitHub (and on
+GitHub Enterprise hosts ghq knows) that are not cloned yet, and what your
+organizations share.
 
-The plain picker matches repository paths. Two opt-in modes look inside:
-
-```sh
-ghqcd --index                 # README + GitHub description + issues → cache
-ghqcd --issues timeout        # repositories and their issues, in fzf
-ghqcd --index --semantic      # also embed everything (once; re-run to refresh)
-ghqcd --semantic "把长网址缩短后分享"   # the repo whose README or issues mean that
+```
+╭───────────────────────────────────────────────────────────────╮
+│ repo> lj                                                      │
+│   8/8 ─────────────────────────────────────────────────────── │
+│ ▌ github.com/ryoshin0830/lj · not cloned                      │
+│ ▌ github.com/ryoshin0830/short-url  README: …                 │
+│ ▌ git.pepabo.com/hosting/alchemy  #3170 …                     │
+│ ───────────────────────────────────────────────────────────── │
+│   indexed 2 h ago · enter go · ctrl-o open on GitHub · ctrl-r │
+╰───────────────────────────────────────────────────────────────╯
 ```
 
-- **`--index`** reads each README from your clone, and through the GitHub API
-  the description and the 100 most recently updated issues of every repository
-  you can push to. Issues of repositories you only read are skipped: they are
-  someone else's tracker and would crowd out your own. The token comes from
-  `GH_TOKEN` / `GITHUB_TOKEN` (`GH_ENTERPRISE_TOKEN` for other hosts) or
-  `gh auth token`. Without one, or when the API refuses it, each repository
-  keeps the description and issues of the last run.
-- **`--issues`** adds one fzf line per issue (`slug  #12 title  body…`).
-  Matching is exact (space-separated substrings), because fuzzy matching over a
-  whole issue body matches nearly anything. Choosing an issue lands you in its
-  repository; `--json` adds `"issue": 12`.
-- **`--semantic`** finds a repository from a description of what it does,
-  across languages: a Chinese query finds a README or issue written in
-  Japanese or English. `--json` adds `"score"`: the cosine similarity of the
-  best-matching chunk, minus 0.1 when that chunk is an issue.
+Results are ranked by where the words matched, strongest first:
 
-The index lives in `$XDG_CACHE_HOME/ghqcd` (default `~/.cache/ghqcd`,
-`%LOCALAPPDATA%\ghqcd` on Windows), readable only by you, because it holds
-issue text from private repositories.
+1. **name** (exact, then prefix, then substring; then owner or host; then the
+   letters of a single word in order, as fzf does),
+2. **description**, 3. **README**, 4. **issues** (title, then body),
+5. **meaning** — `≈` lines: the README or issue *means* what you typed, in any
+   language (a Chinese query finds a Japanese README),
+6. **code** — `code:` lines: `git grep` in your clones, and GitHub's code search
+   for repositories that are not cloned.
 
-### What `--semantic` installs
+Every word must match somewhere. Name hits appear as you type; meaning and code
+hits are added below them as they arrive.
 
-Nothing is added to ghqcd's own dependencies, and nothing is installed until
-you run `ghqcd --index --semantic`. Then, into the cache directory:
+| Key | Does |
+| --- | --- |
+| type | search |
+| Enter | go to the repository — `ghq get` first if it is not cloned |
+| ctrl-o | open it on GitHub (the issue, or the file, when that is what matched) |
+| ctrl-r | refresh the index now |
+| Esc | leave (exit 130, nothing printed) |
+
+`ghqcd <query>` still lands without the window when the match is clear: one
+clone by name, or else one repository that is not cloned by name, which is
+cloned first.
+
+### The index, and the status bar
+
+The window keeps its index fresh by itself: when the index is missing or a day
+old, it starts `ghqcd --index` in the background (detached, at low priority),
+and the bar at the bottom shows what it is doing:
+
+```
+indexing in the background: embedding 412 of 1,800 · about 12 min left
+```
+
+Closing the window does not stop it; the next window shows where it got to.
+An interrupted run resumes where it stopped. `ghqcd --index` does the same in
+the foreground. Only one index run happens at a time.
+
+The index reads, through the GitHub API (`GH_TOKEN` / `GITHUB_TOKEN`,
+`GH_ENTERPRISE_TOKEN` for other hosts, or `gh auth token`):
+
+- **your repositories** (owned or shared with you): description, README, and
+  the 100 most recently updated issues of those you can push to;
+- **what your organizations share**: name and description only (one GHE host
+  had 2,044 of these).
+
+Without a token, or when the API refuses it, each repository keeps what the last
+run fetched. Everything lives in `$XDG_CACHE_HOME/ghqcd` (default
+`~/.cache/ghqcd`, `%LOCALAPPDATA%\ghqcd` on Windows), readable only by you,
+because it holds issue text from private repositories.
+
+### Meaning search: what gets installed
+
+Meaning search is on by default. Nothing is added to ghqcd's own dependencies;
+the first index run installs, into the cache directory:
 
 - **runtime** — `onnxruntime-web` and `@huggingface/tokenizers`, at the exact
   versions in [`lib/runtime/package-lock.json`](lib/runtime/package-lock.json),
   via `npm ci --ignore-scripts`. It is WebAssembly, so it runs the same on
   macOS, Linux and Windows with no native build and no other app.
 - **model** — [Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)
-  as fp16 ONNX (about 1.2 GB), from a pinned revision of
+  as fp16 ONNX (about 1.2 GB, once), from a pinned revision of
   [onnx-community/Qwen3-Embedding-0.6B-ONNX](https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX),
   checked against SHA-256 hashes in the source.
 
-**Refreshing.** Nothing updates the index behind your back: it reads private
-issues, so it runs only when you ask. In the `--issues` and `--semantic`
-pickers, the header says when the index was built and roughly how long a
-refresh takes, and **ctrl-r** refreshes it in place: progress stays on one
-line, a `✓ indexed … in 6 s` line is left behind, and the picker reopens with
-what you had typed. From a script, re-run `ghqcd --index --semantic` (or just
-`--index`); `--json` runs mention an index more than 7 days old on stderr. A refresh compares each
-README and issue with the last run by SHA-256 and re-embeds only the ones that
-changed: with nothing changed it takes as long as fetching from GitHub (8
-seconds for 55 repositories). Only one `--index` runs at a time.
-
-The first embedding pass is the slow part. Each README is split into chunks of
-up to 512 tokens; each issue contributes one chunk (its title and the start of
-its body). 55 repositories with 1,571 issues made 1,796 chunks and took 37
-minutes on an Apple M4 Pro. It is resumable, Ctrl-C is safe, and later runs
-embed only what changed. A query runs locally and takes two to three seconds,
-most of it loading the model.
+`GHQCD_SEMANTIC=0` leaves both out. The first embedding pass is the slow part:
+55 repositories with 1,571 issues made 1,796 chunks and took 37 minutes on an
+Apple M4 Pro. Later runs compare each README and issue with the last run by
+SHA-256 and embed only what changed; with nothing changed, a refresh takes as
+long as asking GitHub (a few seconds). Searching runs on your machine, except
+code queries for repositories that are not cloned, which go to GitHub's code
+search (after a short pause in typing, at most 10 a minute).
 
 Why this model, and why fp16 rather than a smaller int8 file, is measured in
 [`docs/research/semantic-search-plan.md`](docs/research/semantic-search-plan.md).
 
 ## For scripts and AI agents
 
-`--json` never opens a UI, so it is safe in a pipeline or an agent session.
+`--json` never opens a UI, so it is safe in a pipeline or an agent session. It
+ranks the same way as the window but only ever returns a clone, so `path`
+always exists; when only a repository that is not cloned matched, it exits 2
+with the `ghq get` command in the message. It never starts an index run.
 
 ```console
 $ ghqcd --json api
@@ -193,7 +221,7 @@ $ ghqcd --json durian
 | --- | --- | --- |
 | 0 | — | success |
 | 1 | `E_VALIDATION`, `E_GHQ`, `E_FZF` | bad flags, or an upstream command failed |
-| 1 | `E_INDEX` | no index yet (run `ghqcd --index`), or building it failed |
+| 1 | `E_INDEX` | `ghqcd --index` failed, or another one is running |
 | 2 | `E_NO_MATCH` | no repository matched |
 | 3 | `E_AMBIGUOUS` | non-interactive with no query — pass one, or use `--list` |
 | 127 | `E_DEPS` | `ghq` or `fzf` not installed |

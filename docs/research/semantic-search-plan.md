@@ -162,3 +162,19 @@ Docker（Node 20、7 リポジトリ）: 初回 140 秒、変更なしの 2 回�
 
 - Windows、x86_64、macOS 以外での fzf の新しい版。
 - Node 20 の索引作成（スレッド 8 本）で同じ停止が起きるか。2 回の初回作成では起きていない。起きたら Ctrl-C で止めて再実行すれば続きから進む。
+
+## 1 つの検索ウィンドウへ（2026-10-27）
+
+利用者の要件で、`--issues` と `--semantic` の別画面をやめ、`ghqcd` の 1 つのウィンドウにまとめた。
+設計は `docs/superpowers/specs/2026-10-27-unified-search-design.md`、計画は `docs/superpowers/plans/2026-10-27-unified-search.md`。
+
+- 対象: clone 済み、GitHub / GHE で自分のリポジトリ（README・issue・ベクトルまで）、組織が共有するリポジトリ（名前と description だけ）。
+  手元の実データでは、github.com 174 件、GHE の自分のもの 27 件、組織のもの 2,044 件。
+- 順位: 名前 > description > README > issue（キーワード、`lib/rank.mjs`）、その下に意味（cos ≥ 0.45）、最後にコード。
+- 意味検索は既定でオン。索引は、ウィンドウを開いたときに古ければ裏で更新し、下部のステータスバーに進捗を出す。
+- 実測（M4 Pro、tmux から操作）:
+  - `lj` で clone していない `ryoshin0830/lj` が先頭。
+  - Enter で `ghq get` してから移動した。
+  - 中国語の質問は、意味の行が約 5 秒で足される（初回のモデル読み込みを含む）。
+  - 関数名の質問は、`git grep` の結果が約 6 秒、GitHub のコード検索の結果も約 6 秒で出た。
+  - 自分のリポジトリを足した初回の索引更新では、513 chunk を約 8 分で embedding した。

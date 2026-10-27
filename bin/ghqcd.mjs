@@ -624,13 +624,13 @@ function copyToClipboard(text) {
   return true;
 }
 
-// ── search index (--index, --issues, --semantic) ─────────────────────────────
+// ── search index (--index and the window) ────────────────────────────────────
 
 // Loaded on demand so the plain picker never pays for it.
 const searchIndex = () => import('../lib/search-index.mjs');
 const pathOf = (line) => line.split('\t')[0];
 
-// Output for --index and for ctrl-r in the pickers. All of it goes to stderr,
+// Output for --index (foreground, or the window's background run). All of it goes to stderr,
 // even under --quiet: the shell function adds that flag to every call.
 // On a terminal, progress is one line rewritten in place and the run ends in a
 // one-line receipt, so a refresh leaves one line of scrollback, not ten.
