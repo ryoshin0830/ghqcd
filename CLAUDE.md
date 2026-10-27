@@ -228,8 +228,14 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   push. The user fixed the order name > description > README > issues > code;
   do not reorder. Subsequence runs on the name only: on the slug, `cli`
   matched every repository through `github.com/alice`.
-- **Below keyword hits:** meaning hits (`≈`, cosine ≥ 0.45, at most 20, issue
-  chunks −0.1), then code hits (`code:`). `lib/serve.mjs` streams them in that
+- **Below keyword hits:** meaning hits (cosine ≥ 0.45, at most 20, issue
+  chunks −0.1), then code hits.
+- **Every line says what matched**, in a 7-column label (`matchLabel` in
+  `lib/rank.mjs`): `name`, `name*`, `path`, `desc`, `readme`, `issue`,
+  `~readme`, `~issue`, `code`; `~` alone means "by meaning". ASCII only: `≈`
+  is East Asian ambiguous width and shifts the column under ja locales. The
+  meta field is `<label>|<#issue or file:line>|<similarity>`; the preview gets
+  `{q}` and shows `matched … by …` and the matched lines (`matchContext`). `lib/serve.mjs` streams them in that
   order; fzf shows lines as they arrive.
 - **Mechanics:** the parent keeps the index and the model in memory and answers
   on a Unix socket in the 0700 cache dir. fzf runs `--disabled` with
@@ -385,7 +391,7 @@ The interactive fzf UI cannot be tested there. Run these by hand:
 | Cancel | `ghqcd`, press Esc | exit 130, shell stays put, no error line |
 | Ctrl-C | `ghqcd`, press Ctrl-C | exit 130, cursor restored |
 | Preview pane | `ghqcd` at ≥ 100 columns | description, README or issue, recent commits |
-| Meaning and code | type a sentence; type a function name | `≈` lines, then `code:` lines, below the name hits |
+| Labels | type a sentence; type a function name | `~readme` / `~issue` lines, then `code` lines, below `name` / `desc` / `readme` / `issue`; preview says "matched … by …" |
 | Status bar | `ghqcd`, ctrl-r | footer streams the background index run; closing says it continues |
 | ctrl-o | `ghqcd`, ctrl-o | the repository (issue, file) opens in the browser; the window reopens |
 | Narrow window | `ghqcd` at 80x24 and 60 columns | preview hidden, 8 result rows, footer not cut |

@@ -104,26 +104,40 @@ GitHub Enterprise hosts ghq knows) that are not cloned yet, and what your
 organizations share.
 
 ```
-╭───────────────────────────────────────────────────────────────╮
-│ repo> lj                                                      │
-│   8/8 ─────────────────────────────────────────────────────── │
-│ ▌ github.com/ryoshin0830/lj · not cloned                      │
-│ ▌ github.com/ryoshin0830/short-url  README: …                 │
-│ ▌ github.com/alice/api  #12 …                                 │
-│ ───────────────────────────────────────────────────────────── │
-│   indexed 2 h ago · enter go · ctrl-o open on GitHub · ctrl-r │
-╰───────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────╮
+│ repo> url                                                            │
+│   “url” · name path desc readme issue code: the words typed · ~: by… │
+│ ▌ name    github.com/ryoshin0830/short-url · not cloned              │
+│ ▌ desc    github.com/alice/tools  short URL and file transfer        │
+│ ▌ readme  github.com/alice/web  …shorten a long URL before sharing…  │
+│ ▌ issue   github.com/alice/api  #12 URL shortener returns 500        │
+│ ▌ ~readme github.com/alice/links  把长网址缩短后分享                   │
+│ ▌ code    github.com/alice/web  src/url.js:8 export function short…  │
+│ ──────────────────────────────────────────────────────────────────── │
+│   indexed 2 h ago · enter go · ctrl-o open on GitHub · ctrl-r refresh│
+╰──────────────────────────────────────────────────────────────────────╯
 ```
 
-Results are ranked by where the words matched, strongest first:
+The label on the left of each line says what matched, strongest first:
 
-1. **name** (exact, then prefix, then substring; then owner or host; then the
-   letters of a single word in order, as fzf does),
-2. **description**, 3. **README**, 4. **issues** (title, then body),
-5. **meaning** — `≈` lines: the README or issue *means* what you typed, in any
-   language (a Chinese query finds a Japanese README),
-6. **code** — `code:` lines: `git grep` in your clones, and GitHub's code search
-   for repositories that are not cloned.
+| Label | Matched | How |
+| --- | --- | --- |
+| `name` | the repository name (exact, prefix, or part of it) | the words typed |
+| `name*` | the name's letters in order, as fzf matches (one word only) | the words typed |
+| `path` | `host/owner/name` (an owner or host) | the words typed |
+| `desc` | the description | the words typed |
+| `readme` | the README | the words typed |
+| `issue` | an issue's title or body | the words typed |
+| `~readme` | what the name, description and README *mean* | by meaning, in any language |
+| `~issue` | what an issue *means* | by meaning, in any language |
+| `code` | code: `git grep` in clones, GitHub's code search otherwise | the words typed |
+
+`~` marks a meaning (vector) match, so a Chinese query can find a Japanese
+README. The labels are words, so they read the same without color
+(`NO_COLOR`); color only repeats them: cyan for words, magenta for meaning,
+yellow for code. The preview (at 100 columns and wider) starts with what matched
+and how — `matched issue #12 by the words typed`, `matched the README by meaning
+(similarity 0.56)` — followed by the matched lines in place.
 
 Every word must match somewhere. Name hits appear as you type; meaning and code
 hits are added below them as they arrive.

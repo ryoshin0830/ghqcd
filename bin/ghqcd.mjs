@@ -138,7 +138,7 @@ if (values['serve-query'] != null || values['serve-preview'] != null) {
   const { queryClient } = await import('../lib/serve.mjs');
   await (values['serve-query'] != null
     ? queryClient(values['serve-query'], { q: positionals.join(' ') })
-    : queryClient(values['serve-preview'], { preview: positionals[0] ?? '', meta: positionals[1] ?? '' }));
+    : queryClient(values['serve-preview'], { preview: positionals[0] ?? '', meta: positionals[1] ?? '', q: positionals.slice(2).join(' ') }));
   process.exit(0);
 }
 
@@ -161,6 +161,8 @@ const ansi = (code) =>
   useColor ? (s) => `\x1b[${code}m${s}\x1b[0m` : (s) => String(s);
 const dim = ansi(2);
 const cyan = ansi(36);
+const magenta = ansi(35);
+const yellow = ansi(33);
 const green = ansi(32);
 const red = ansi(31);
 const bold = ansi(1);
@@ -804,6 +806,8 @@ function statusLine(si) {
     'enter go', 'ctrl-o open on GitHub', 'ctrl-r refresh'].join(' · '), width);
 }
 
+let matchLabel, matchContext; // from lib/rank.mjs, loaded with the window
+
 // Bold the query's words in a line, unless color is off.
 function mark(text, terms) {
   if (!useColor || !terms.length) return text;
@@ -811,29 +815,55 @@ function mark(text, terms) {
   return text.replace(re, (m) => `\x1b[1m${m}\x1b[22m`);
 }
 
-// One result line after the key: `<meta>\t<shown text>`. meta is `#<issue>` or
-// `<file>:<line>` for ctrl-o and the preview; fzf shows only the text.
+// One result line after the key: `<meta>\t<shown text>`. meta is
+// `<label>|<#issue or file:line>|<similarity>`, for ctrl-o and the preview; fzf
+// shows only the text. The text starts with a label column saying what matched
+// (lib/rank.mjs matchLabel): the words, in cyan; `~`, by meaning, in magenta;
+// code, in yellow. The label is the signal; color only repeats it.
+const LABEL_WIDTH = 7;
 function display(hit, terms) {
-  const text = hit.via === 'meaning' ? `≈ ${hit.snippet ?? hit.description ?? ''}`
-    : hit.via === 'code' ? `code: ${hit.snippet}`
-      : hit.field === 'readme' ? `README: ${hit.snippet}` : (hit.snippet ?? hit.description ?? '');
-  const meta = hit.loc ?? (hit.number ? `#${hit.number}` : '');
-  return `${meta}\t${hit.slug}${hit.cloned ? '' : dim(' · not cloned')}  ${mark(flatText(text), terms)}`;
+  const label = matchLabel(hit);
+  const tint = hit.via === 'meaning' ? magenta : hit.via === 'code' ? yellow : cyan;
+  const ref = hit.loc ?? (hit.number ? `#${hit.number}` : '');
+  // Found by its name or path: the description is shown, dim, as context only.
+  const text = ['name', 'name*', 'path'].includes(label) ? dim(flatText(hit.description))
+    : mark(flatText(`${hit.via === 'meaning' && hit.number ? `#${hit.number} ` : ''}${hit.snippet ?? hit.description ?? ''}`), terms);
+  const score = hit.via === 'meaning' ? hit.score?.toFixed(2) : '';
+  return `${label}|${ref}|${score ?? ''}\t${tint(label.padEnd(LABEL_WIDTH))} ${hit.slug}${hit.cloned ? '' : dim(' · not cloned')}  ${text}`;
 }
 const flatText = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
 // No query yet: everything, clones first, then the most recently pushed.
 const browse = (docs) => [...docs]
   .sort((a, b) => b.cloned - a.cloned || (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''))
-  .map((d) => `${d.key}\t${display({ ...d, snippet: d.description }, [])}`);
+  .map((d) => `${d.key}\t||\t${' '.repeat(LABEL_WIDTH)} ${d.slug}${d.cloned ? '' : dim(' · not cloned')}  ${dim(flatText(d.description))}`);
 
-function preview(docs, key, meta) {
+const WHAT = { name: 'the name', 'name*': 'the name (its letters in order)', path: 'the path', desc: 'the description', readme: 'the README', '~readme': 'the README' };
+
+// The right pane: what matched and how, then the matched lines in place.
+function preview(docs, key, meta, q) {
   const d = docs.find((x) => x.key === key);
   if (!d) return [];
-  const out = [bold(d.slug) + (d.cloned ? '' : dim('  not cloned: enter clones it')), flatText(d.description), ''];
-  const issue = meta.startsWith('#') && d.issues?.find((i) => i.number === Number(meta.slice(1)));
-  if (issue) out.push(bold(`#${issue.number} ${issue.title}`), ...issue.body.split('\n').slice(0, 40));
-  else if (d.readme) out.push(...d.readme.split('\n').slice(0, 30));
+  const [label = '', ref = '', score = ''] = meta.split('|');
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const out = [bold(d.slug) + (d.cloned ? '' : dim('  not cloned: enter clones it'))];
+  const what = label.endsWith('issue') ? `issue ${ref}` : label === 'code' ? `code in ${ref}` : WHAT[label];
+  const how = label.startsWith('~') ? `by meaning${score ? ` (similarity ${score})` : ''}` : 'by the words typed';
+  if (what) out.push(`${dim('matched')} ${what} ${dim(how)}`, '');
+  const passage = (text, head) => {
+    const at = matchContext(text, terms);
+    return (at.length ? at : String(text ?? '').split('\n').slice(0, head)).map((l) => mark(l, terms));
+  };
+  const issue = ref.startsWith('#') && d.issues?.find((i) => i.number === Number(ref.slice(1)));
+  if (issue) out.push(bold(`#${issue.number} ${issue.title}`), ...passage(issue.body, 12));
+  else if (label === 'code' && d.cloned) {
+    const [file] = ref.split(':');
+    const grep = spawnSync('git', ['-C', d.key, 'grep', '-h', '-n', '-i', '-F', '-C', '3', '-e', q, '--', file], { encoding: 'utf8' });
+    out.push(...(grep.stdout ?? '').split('\n--\n')[0].split('\n').map((l) => mark(l, terms)));
+  } else if (label === 'code') out.push(dim('ctrl-o opens the file on GitHub'));
+  else if (label.endsWith('readme') && d.readme) out.push(...passage(d.readme, 12));
+  if (d.description && label !== 'desc') out.push('', flatText(d.description));
+  else if (label === 'desc') out.push(mark(flatText(d.description), terms));
   if (d.cloned) {
     const log = spawnSync('git', ['-C', d.key, 'log', '--oneline', '-5'], { encoding: 'utf8' }).stdout?.trim();
     if (log) out.push('', dim('recent commits'), log);
@@ -850,8 +880,9 @@ function openUrl(url) {
 }
 function urlOf(doc, meta) {
   const base = `https://${doc.slug}`;
-  if (meta.startsWith('#')) return `${base}/issues/${meta.slice(1)}`;
-  const [file, line] = meta.split(':');
+  const [, ref = ''] = meta.split('|');
+  if (ref.startsWith('#')) return `${base}/issues/${ref.slice(1)}`;
+  const [file, line] = ref.split(':');
   return file ? `${base}/blob/HEAD/${file}${line ? `#L${line}` : ''}` : base;
 }
 
@@ -882,10 +913,11 @@ async function searchWindow(si, repos, slugOf) {
   const stream = (q, write, signal) => {
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
     if (!terms.length) {
-      write(`\t\t${dim('every repository, clones first · type to search')}`);
+      write(`\t||\t${dim('every repository, clones first · type to search')}`);
       return browse(docs).forEach(write);
     }
-    write(`\t\t${dim(`searching “${q}”: names, descriptions, READMEs, issues${SEMANTIC ? '; meaning and code follow' : '; code follows'}`)}`);
+    // A legend for the label column, and what is still on its way.
+    write(`\t||\t${dim(`“${q}” · name path desc readme issue code: the words typed${SEMANTIC ? ' · ~: by meaning, follows' : ''}`)}`);
     return streamResults({
       query: q, docs, write, signal, display: (h) => display(h, terms),
       code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
@@ -893,7 +925,7 @@ async function searchWindow(si, repos, slugOf) {
     });
   };
   const server = await startServer(socketPath(dir), async (p, write, signal) => {
-    if (p.preview != null) return preview(docs, p.preview, p.meta ?? '').forEach(write);
+    if (p.preview != null) return preview(docs, p.preview, p.meta ?? '', p.q ?? '').forEach(write);
     return stream(String(p.q ?? ''), write, signal);
   });
   const socket = socketPath(dir);
@@ -930,7 +962,7 @@ async function searchWindow(si, repos, slugOf) {
       '--disabled', '--ansi', '--no-sort', '--delimiter=\t', '--with-nth=3..', '--no-hscroll',
       '--print-query', '--expect=ctrl-o,ctrl-r', `--query=${typed}`,
       `--bind=change:reload:${CLIENT} --serve-query ${sh(socket)} {q}`,
-      `--preview=${CLIENT} --serve-preview ${sh(socket)} {1} {2}`,
+      `--preview=${CLIENT} --serve-preview ${sh(socket)} {1} {2} {q}`,
       '--preview-window=right,50%,wrap,border-left,<50(hidden)', '--min-height=14', '--header-lines=1',
       ...(live ? [`--footer=${status}`, `--listen=${fzfSock}`] : [`--header=${status}`]),
     ];
@@ -1042,6 +1074,7 @@ async function main() {
   }
   const si = await searchIndex();
   const rank = await import('../lib/rank.mjs');
+  ({ matchLabel, matchContext } = rank);
   if (isNonInteractive) {
     // Scripts and agents get a clone, always: `path` must exist (I7).
     const docs = si.readDocs(repos, slugOf);

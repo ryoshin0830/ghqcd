@@ -1,7 +1,7 @@
 // The ranker behind the one search window. Pure: documents in, hits out.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { keywordRank, nameHits, pathHits, landing } from '../lib/rank.mjs';
+import { keywordRank, nameHits, pathHits, landing, matchLabel, matchContext } from '../lib/rank.mjs';
 
 const doc = (name, extra = {}) => ({
   key: `/r/${name}`, slug: `github.com/alice/${name}`, name, cloned: true, ...extra,
@@ -85,4 +85,21 @@ test('landing: a unique clone lands, else a unique name among repositories not c
   assert.equal(landing([doc('web'), far('lj')], 'lj').key, 'github.com/alice/lj');
   assert.equal(landing([doc('api'), doc('api-x')], 'api'), null, 'two clones: open the window');
   assert.equal(landing([doc('load-json'), far('lj')], 'lj'), null, 'a weak subsequence clone must not hide an exact name');
+});
+
+test('matchLabel names the field and, with ~, a meaning match', () => {
+  const cases = [
+    [{ field: 'name' }, 'name'], [{ field: 'fuzzy' }, 'name*'], [{ field: 'slug' }, 'path'],
+    [{ field: 'description' }, 'desc'], [{ field: 'readme' }, 'readme'], [{ field: 'issue' }, 'issue'],
+    [{ via: 'meaning', kind: 'readme' }, '~readme'], [{ via: 'meaning', kind: 'issue' }, '~issue'],
+    [{ via: 'code' }, 'code'],
+  ];
+  for (const [hit, label] of cases) assert.equal(matchLabel(hit), label, JSON.stringify(hit));
+});
+
+test('matchContext returns the lines around the first matching line', () => {
+  const text = ['a', 'b', 'c', 'd', 'the ＮＥＥＤＬＥ', 'f', 'g', 'h', 'i'].join('\n');
+  assert.deepEqual(matchContext(text, ['needle']), ['b', 'c', 'd', 'the ＮＥＥＤＬＥ', 'f', 'g', 'h']);
+  assert.deepEqual(matchContext('one\ntwo', ['zzz']), []);
+  assert.deepEqual(matchContext('x needle', ['needle'], 1), ['x needle']);
 });
