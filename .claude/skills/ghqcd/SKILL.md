@@ -47,16 +47,18 @@ If `ghqcd` is on PATH:
 ghqcd --json <query>
 ```
 
-Otherwise (pin to `^0.1`, NOT `@latest`, so a future major bump does not
+Otherwise (pin to `^0.2`, NOT `@latest`, so a future major bump does not
 silently break the flow):
 
 ```bash
-npx -y ghqcd@^0.1 --json <query>
+npx -y ghqcd@^0.2 --json <query>
 ```
 
 `--json` ranks clones by where the words match: name, then description, then
-README, then issues (once an index exists). So a word from what a repository
-*does*, or from an issue the user remembers, also works:
+README, then issues (once an index exists). When no word matches any
+repository, it falls back to fzf's fuzzy match on the clone paths (`ali/web`),
+as 0.1 did. So a word from what a repository *does*, or from an issue the user
+remembers, also works:
 
 ```bash
 ghqcd --json "upload stalls"
