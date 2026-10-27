@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Final confirmation with previously unused intent groups. Freeze this file and the final selection before inference; report without tuning to these results. Small agent-labeled local sample, not an external benchmark.",
+  "lengths": ["long"],
+  "groups": [
+    {"id":"confirm-marketplace","split":"confirmation","relevant":["ryoshin0830/cc-dev-tools"],"long":["为Claude Code安装开发工具和插件的市场","Claude Code用の開発ツールとプラグインを配布するマーケットプレイス","A marketplace for installing development tools and plugins for Claude Code"]},
+    {"id":"confirm-performance","split":"confirmation","relevant":["ryoshin0830/isucon-shin"],"long":["练习ISUCON网站性能调优竞赛的项目","ISUCONのWebアプリ高速化競技を練習する研修リポジトリ","A training repository for the ISUCON web application performance optimization contest"]},
+    {"id":"confirm-quiz","split":"confirmation","relevant":["ryoshin0830/gmo-quiz"],"long":["给GMO集团公司培训用的答题测验应用","GMOグループの研修で使うクイズのアプリ","A quiz application used for training at the GMO group"]},
+    {"id":"confirm-memory-agent","split":"confirmation","relevant":["ryoshin0830/hermes-agent"],"long":["能持久记住偏好并逐渐积累技能的个人AI助手","好みを長期記憶しながらスキルを蓄積して成長する個人AIエージェント","A personal AI agent that remembers preferences persistently and grows its skills over time"]},
+    {"id":"confirm-cad","split":"confirmation","relevant":[],"long":["设计机械零件三维模型并生成加工图纸的CAD工具","機械部品の3D形状を設計して加工図面を作るCADツール","A CAD tool to design 3D mechanical parts and generate manufacturing drawings"]},
+    {"id":"confirm-pitch","split":"confirmation","relevant":[],"long":["自动修正歌曲人声的音高并处理跑调","歌声の音程を自動補正して音痴を修正する","Automatically correct the pitch of a recorded singing voice"]},
+    {"id":"confirm-gps","split":"confirmation","relevant":[],"long":["根据GPS位置计算汽车导航路线并提示转弯","GPSの位置から車のナビ経路を計算して曲がる場所を案内する","Calculate a driving navigation route from GPS location and provide turn-by-turn directions"]},
+    {"id":"confirm-handwriting","split":"confirmation","relevant":[],"long":["从手写汉字照片中识别文字并输出文本","手書きの漢字を撮影した写真から文字を認識してテキストにする","Recognize handwritten Chinese characters in a photo and output text"]}
+  ]
+}
