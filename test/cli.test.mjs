@@ -57,16 +57,20 @@ exit 2
   return dir;
 }
 
+// The developer's own ~/.cache/ghqcd (private issues, maybe a broken file)
+// must not reach a test: every run gets an empty cache unless it brings one.
 function run(args, { shims, env = {} } = {}) {
   const dir = shims ?? makeShims();
+  const cache = env.GHQCD_CACHE_DIR ? null : tempCache();
   const childEnv = {
-    ...process.env, PATH: `${dir}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', ...env,
+    ...process.env, PATH: `${dir}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache, ...env,
   };
   // We force NO_COLOR; node itself warns to stderr when FORCE_COLOR is also
   // set, so a developer who exports it would otherwise see phantom failures.
   delete childEnv.FORCE_COLOR;
   const r = spawnSync(process.execPath, [BIN, ...args], { encoding: 'utf8', env: childEnv });
   if (!shims) rmSync(dir, { recursive: true, force: true });
+  if (cache) rmSync(cache, { recursive: true, force: true });
   return r;
 }
 
@@ -339,7 +343,8 @@ test('re-sourcing is idempotent even with a stale function defined', (t) => {
 
 function runAsync(args, env, shimOpts) {
   const shims = makeShims(shimOpts);
-  const childEnv = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', ...env };
+  const cache = env.GHQCD_CACHE_DIR ? null : tempCache(); // see run()
+  const childEnv = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache, ...env };
   delete childEnv.FORCE_COLOR; // see run()
   const child = spawn(process.execPath, [BIN, ...args], { env: childEnv });
   let stdout = '', stderr = '';
@@ -347,6 +352,7 @@ function runAsync(args, env, shimOpts) {
   child.stderr.on('data', (b) => { stderr += b; });
   return new Promise((resolve) => child.on('close', (status) => {
     rmSync(shims, { recursive: true, force: true });
+    if (cache) rmSync(cache, { recursive: true, force: true });
     resolve({ status, stdout, stderr });
   }));
 }
