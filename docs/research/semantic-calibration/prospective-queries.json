@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Fresh query wording fixed after the main policy selection and measured only afterward. Intent/language overlap with the main evaluation is intentional; this is a prospective phrasing check, not an unseen-domain benchmark.",
+  "lengths": ["long"],
+  "groups": [
+    {"id":"fresh-outlook","split":"prospective","relevant":["ryoshin0830/outlook-mcp"],"long":["用MCP替我找微软收件箱里的邮件","MCPでマイクロソフトの受信箱からメールを探す","Search my Microsoft inbox using an MCP integration"]},
+    {"id":"fresh-gist","split":"prospective","relevant":["ryoshin0830/gistree"],"long":["我想在Gist列表中看到每个片段含有哪些文件","Gist一覧で各Gistに入っているファイルをすべて見たい","See every file contained in each item of a Gist list"]},
+    {"id":"fresh-tts","split":"prospective","relevant":["ryoshin0830/japanese-tts-comparison"],"long":["想听听不同模型读日文的效果并比较花费","複数モデルの日本語の読み上げを聴き比べて費用も確認したい","Listen to different models reading Japanese and compare what each one costs"]},
+    {"id":"fresh-pages","split":"prospective","relevant":["ryoshin0830/page-checker"],"long":["扫描的书可能漏了几页，想把页码排在一起检查","スキャンした本に抜けがないかページ番号を並べて確かめたい","Check a scanned book for skipped pages by viewing its page numbers together"]},
+    {"id":"fresh-oauth","split":"prospective","relevant":["ryoshin0830/grantloom"],"long":["给终端工具加上Google登录授权并安全保存token","ターミナルのツールにGoogle認可を付けてトークンを安全に保管したい","Add Google authorization to a terminal tool and keep the resulting token safe"]},
+    {"id":"fresh-finance","split":"prospective","relevant":["ryoshin0830/kane"],"long":["用个人理财应用的MCP来自动归类我的消费记录","個人会計アプリのMCPで支出の分類を自動化したい","Use a personal finance app's MCP to automatically categorize my spending records"]},
+    {"id":"fresh-spinner","split":"prospective","relevant":["ryoshin0830/ccverbs"],"long":["把Claude Code等待时转圈旁的文字换成自己喜欢的动词","Claude Codeで待っている間に出る動詞の表示を自分好みにしたい","Change the verbs shown next to Claude Code's spinner while it is busy"]},
+    {"id":"fresh-ui","split":"prospective","relevant":["ryoshin0830/wip-ui"],"long":["找公司设计系统提供的React和SCSS组件库","社内デザインシステムのReactとSCSSのコンポーネント集を探す","Find the React and SCSS component library for the company design system"]},
+    {"id":"fresh-antivirus","split":"prospective","relevant":[],"long":["检查下载的程序是不是病毒或木马","ダウンロードした実行ファイルがウイルスやトロイの木馬か検査する","Check whether a downloaded executable contains a virus or Trojan"]},
+    {"id":"fresh-trade","split":"prospective","relevant":[],"long":["通过证券账户的API每天自动买卖股票","証券口座のAPIで毎日自動的に株を売買する","Automatically buy and sell stocks every day through a brokerage API"]},
+    {"id":"fresh-vpn","split":"prospective","relevant":[],"long":["搭一个供手机和电脑连接的WireGuard服务端","スマホとPCから接続できるWireGuardサーバーを構築する","Set up a WireGuard server that my phone and computer can connect to"]},
+    {"id":"fresh-translation","split":"prospective","relevant":[],"long":["实现一个离线神经机器翻译引擎","オフラインで動くニューラル機械翻訳エンジンを実装する","Implement an offline neural machine translation engine"]}
+  ]
+}
