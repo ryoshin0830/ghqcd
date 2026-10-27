@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { connect } from 'node:net';
 import { Writable } from 'node:stream';
-import { streamResults, startServer, queryClient, socketPath } from '../lib/serve.mjs';
+import { streamResults, startServer, queryClient, socketPath, afterPause } from '../lib/serve.mjs';
 
 const docs = [
   { key: '/r/apple', slug: 'github.com/a/apple', name: 'apple', cloned: true, description: 'fruit' },
@@ -17,10 +17,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 test('keyword hits come first, then meaning hits not already shown, then code', async () => {
   const lines = [];
+  const far = { key: 'github.com/a/far', slug: 'github.com/a/far', name: 'far', cloned: false };
   await streamResults({
-    query: 'apple', docs, write: (l) => lines.push(l), signal: new AbortController().signal,
+    query: 'apple', docs: [...docs, far], write: (l) => lines.push(l), signal: new AbortController().signal,
     display: (h) => `${h.slug} ${h.via ?? h.field}`,
-    meaning: async () => { await sleep(30); return [{ key: '/r/pie', score: 0.6 }, { key: 'github.com/a/far', slug: 'github.com/a/far', score: 0.5 }]; },
+    meaning: async () => { await sleep(30); return [{ key: '/r/pie', score: 0.6 }, { key: 'github.com/a/far', score: 0.5 }]; },
     code: async function* () { await sleep(30); yield { key: '/r/apple', slug: 'github.com/a/apple', snippet: 'a.js:1 apple()' }; },
   });
   assert.deepEqual(lines, [
@@ -67,4 +68,23 @@ test('a full answer reaches the client line by line', async () => {
     server.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('a meaning hit embedded under a repository\'s old key shows under its current key; unknown keys are dropped', async () => {
+  const lines = [];
+  await streamResults({
+    query: 'zzz', write: (l) => lines.push(l), signal: new AbortController().signal,
+    docs: [{ key: '/r/lj', alias: 'github.com/a/lj', slug: 'github.com/a/lj', name: 'lj', cloned: true }],
+    display: (h) => `${h.slug} ${h.via}`,
+    meaning: async () => [{ key: 'github.com/a/lj', score: 0.6 }, { key: 'github.com/a/gone', score: 0.5 }],
+    code: async function* () {},
+  });
+  assert.deepEqual(lines, ['/r/lj\tgithub.com/a/lj meaning']);
+});
+
+test('afterPause waits, unless the query is replaced first', async () => {
+  assert.equal(await afterPause(20, new AbortController().signal), true);
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), 5);
+  assert.equal(await afterPause(200, ac.signal), false);
 });

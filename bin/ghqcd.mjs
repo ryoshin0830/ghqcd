@@ -3,6 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { setPriority } from 'node:os';
+import { Worker } from 'node:worker_threads';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Buffer } from 'node:buffer';
@@ -714,7 +715,11 @@ async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {
     const receipt = `indexed ${repos.length + stats.remote} repositories in ${took}` +
       (semantic ? ` · ${res.changed} ${res.changed === 1 ? 'README or issue' : 'READMEs or issues'} changed` : ` · ${stats.issues} issues`);
     say(`${green('✓')} ${receipt}`);
-    si.writeProgress({ done: true, text: stats.errors ? `GitHub could not be read: ${stats.firstError}` : receipt, failed: !stats.github && stats.errors > 0 });
+    si.writeProgress({
+      done: true, text: stats.errors ? `GitHub could not be read: ${stats.firstError}` : receipt, failed: !stats.github && stats.errors > 0,
+      // The window's footer is the only place a background run can say this.
+      ...(!stats.github && stats.skipped && { hint: 'no GitHub token: run gh auth login, then ctrl-r' }),
+    });
     return res;
   } catch (err) {
     si.writeProgress({ done: true, failed: true, text: err.message });
@@ -760,7 +765,6 @@ function staleHint(at, cmd) {
 const BIN = fileURLToPath(import.meta.url);
 const sh = (s) => `'${String(s).replaceAll("'", "'\\''")}'`;
 const CLIENT = `${sh(process.execPath)} ${sh(BIN)}`;
-const DAY = 864e5;
 
 // fzf with --footer and a Unix-socket --listen can show live progress; older
 // fzf (Debian's 0.38) gets the status once, as a header. Probed rather than
@@ -785,11 +789,7 @@ const running = (si) => {
   const p = si.readProgress();
   return p && !p.done && si.alive(p.pid) ? p : null;
 };
-function stale(si) {
-  const s = si.readStatus();
-  const old = (at) => !at || Date.now() - at > DAY;
-  return old(s.textAt) || (SEMANTIC && old(s.semanticAt));
-}
+const stale = (si) => si.needsRefresh(si.readStatus(), si.readProgress(), Date.now(), SEMANTIC);
 
 // The status bar: what the index is doing, else how old it is and the keys.
 function statusLine(si) {
@@ -800,7 +800,7 @@ function statusLine(si) {
   if (running(si)) return fit(`indexing in the background: ${p.text}`, width);
   if (p?.failed) return fit(`! indexing failed: ${p.text} · ctrl-r retries`, width);
   const at = si.readStatus().textAt;
-  return fit([at ? `indexed ${ago(at)}` : 'ctrl-r also searches GitHub: your repositories, READMEs and issues',
+  return fit([p?.hint ?? (at ? `indexed ${ago(at)}` : 'ctrl-r also searches GitHub: your repositories, READMEs and issues'),
     'enter go', 'ctrl-o open on GitHub', 'ctrl-r refresh'].join(' · '), width);
 }
 
@@ -867,35 +867,29 @@ function clone(slug) {
   return path;
 }
 
-// `ghqcd <query>` lands without the window when the answer is clear: today's
-// unique match among clones (name, slug or subsequence: what fzf matched on the
-// path), else a unique name among repositories that are not cloned.
-function fastPath(rank, docs, q) {
-  const { keywordRank, pathHits, nameHits } = rank;
-  const here = pathHits(keywordRank(docs.filter((d) => d.cloned), q));
-  if (here.length === 1) return docs.find((d) => d.key === here[0].key);
-  if (here.length) return null;
-  const far = nameHits(keywordRank(docs.filter((d) => !d.cloned), q));
-  return far.length === 1 ? docs.find((d) => d.key === far[0].key) : null;
-}
-
 async function searchWindow(si, repos, slugOf) {
   const { startServer, streamResults, socketPath } = await import('../lib/serve.mjs');
-  const dir = si.cacheDir();
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const dir = si.privateDir(si.cacheDir());
   let docs = si.readDocs(repos, slugOf);
   let seen = JSON.stringify(si.readStatus());
-  const meaning = si.meaningSearch();
+  const meaning = meaningWorker();
   const { codeSearch } = await import('../lib/code.mjs');
   const tokens = new Map();
   const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
+  // Every answer starts with one header line (fzf --header-lines=1): fzf keeps
+  // the old list until a line arrives, so a query with no name hits used to
+  // leave the previous results up for seconds while meaning and code ran.
   const stream = (q, write, signal) => {
     const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!terms.length) return browse(docs).forEach(write);
+    if (!terms.length) {
+      write(`\t\t${dim('every repository, clones first · type to search')}`);
+      return browse(docs).forEach(write);
+    }
+    write(`\t\t${dim(`searching “${q}”: names, descriptions, READMEs, issues${SEMANTIC ? '; meaning and code follow' : '; code follows'}`)}`);
     return streamResults({
       query: q, docs, write, signal, display: (h) => display(h, terms),
       code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
-      meaning: (qq) => (SEMANTIC && qq.trim().length >= 2 ? meaning(qq) : []),
+      meaning,
     });
   };
   const server = await startServer(socketPath(dir), async (p, write, signal) => {
@@ -906,63 +900,97 @@ async function searchWindow(si, repos, slugOf) {
   if (stale(si) && !running(si)) startIndexer();
   const live = liveFzf(dir);
   const fzfSock = join(dir, `fzf-${process.pid}.sock`);
+  // On every way out, Esc included (die() exits at once): sockets go, and a
+  // background index run is mentioned so a first 1.2 GB download is not a secret.
+  process.on('exit', () => {
+    server.close();
+    rmSync(fzfSock, { force: true });
+    const p = running(si);
+    if (p) stderr.write(`${dim(`${PKG}: indexing continues in the background (${p.text}); the next window shows its progress`)}\n`);
+  });
+  // An index run that finished since the list was last read: search the new index.
+  const fresh = () => {
+    const s = JSON.stringify(si.readStatus());
+    if (s === seen) return false;
+    seen = s;
+    docs = si.readDocs(repos, slugOf);
+    return true;
+  };
   const post = (action) => {
     const req = request({ socketPath: fzfSock, method: 'POST', path: '/' });
     req.on('error', () => {});
     req.end(action);
   };
   let typed = query;
-  try {
-    for (;;) {
-      const status = statusLine(si);
-      const args = [
-        '--height=40%', '--layout=reverse', '--border', '--prompt=repo> ',
-        '--disabled', '--ansi', '--no-sort', '--delimiter=\t', '--with-nth=3..', '--no-hscroll',
-        '--print-query', '--expect=ctrl-o,ctrl-r', `--query=${typed}`,
-        `--bind=change:reload:${CLIENT} --serve-query ${sh(socket)} {q}`,
-        `--preview=${CLIENT} --serve-preview ${sh(socket)} {1} {2}`,
-        '--preview-window=right,50%,wrap,border-left,<50(hidden)', '--min-height=14',
-        ...(live ? [`--footer=${status}`, `--listen=${fzfSock}`] : [`--header=${status}`]),
-      ];
-      const fzf = spawn('fzf', args, { stdio: ['pipe', 'pipe', 'inherit'] });
-      const ac = new AbortController();
-      fzf.stdin.on('error', () => ac.abort());
-      // The first list streams in exactly like a reload.
-      Promise.resolve(stream(typed, (l) => fzf.stdin.write(`${l}\n`), ac.signal)).finally(() => fzf.stdin.end());
-      let shown = status;
-      const tick = live && setInterval(() => {
-        const now = statusLine(si);
-        if (now !== shown) post(`change-footer:${(shown = now)}`);
-        const s = JSON.stringify(si.readStatus());
-        if (s !== seen) {
-          // An index run finished writing: search the new index from now on.
-          seen = s;
-          docs = si.readDocs(repos, slugOf);
-          post(`reload:${CLIENT} --serve-query ${sh(socket)} {q}`);
-        }
-      }, 500);
-      let out = '';
-      fzf.stdout.on('data', (d) => { out += d; });
-      const [code, signal] = await new Promise((r) => fzf.on('close', (c, s) => r([c, s])));
-      clearInterval(tick);
-      ac.abort();
-      if (code === 130 || signal === 'SIGINT') die('E_INTERRUPTED', 'cancelled');
-      if (code === 1) die('E_NO_MATCH', 'no repository selected');
-      if (code !== 0) die('E_FZF', `fzf exited with status ${code}`);
-      const [q, key, line = ''] = out.replace(/\n$/, '').split('\n');
-      const [k, meta = ''] = line.split('\t');
-      const doc = docs.find((d) => d.key === k);
-      typed = q;
-      if (key === 'ctrl-r') { if (!running(si)) startIndexer(); continue; }
-      if (key === 'ctrl-o') { if (doc) openUrl(urlOf(doc, meta)); continue; }
-      if (!doc) die('E_NO_MATCH', 'no repository selected');
-      return doc;
+  for (;;) {
+    fresh();
+    const status = statusLine(si);
+    const args = [
+      '--height=40%', '--layout=reverse', '--border', '--prompt=repo> ',
+      '--disabled', '--ansi', '--no-sort', '--delimiter=\t', '--with-nth=3..', '--no-hscroll',
+      '--print-query', '--expect=ctrl-o,ctrl-r', `--query=${typed}`,
+      `--bind=change:reload:${CLIENT} --serve-query ${sh(socket)} {q}`,
+      `--preview=${CLIENT} --serve-preview ${sh(socket)} {1} {2}`,
+      '--preview-window=right,50%,wrap,border-left,<50(hidden)', '--min-height=14', '--header-lines=1',
+      ...(live ? [`--footer=${status}`, `--listen=${fzfSock}`] : [`--header=${status}`]),
+    ];
+    const fzf = spawn('fzf', args, { stdio: ['pipe', 'pipe', 'inherit'] });
+    const ac = new AbortController();
+    fzf.stdin.on('error', () => ac.abort());
+    // The first list streams in exactly like a reload.
+    Promise.resolve(stream(typed, (l) => fzf.stdin.write(`${l}\n`), ac.signal)).finally(() => fzf.stdin.end());
+    let shown = status;
+    const tick = live && setInterval(() => {
+      const now = statusLine(si);
+      if (now !== shown) post(`change-footer:${(shown = now)}`);
+      if (fresh()) post(`reload:${CLIENT} --serve-query ${sh(socket)} {q}`);
+    }, 500);
+    let out = '';
+    fzf.stdout.on('data', (d) => { out += d; });
+    const [code, signal] = await new Promise((r) => fzf.on('close', (c, s) => r([c, s])));
+    clearInterval(tick);
+    ac.abort();
+    if (code === 130 || signal === 'SIGINT') die('E_INTERRUPTED', 'cancelled');
+    // fzf exits 1 on an empty list but still reports the key: ctrl-r there is
+    // exactly "I just made it, find it".
+    const [q = '', key = '', line = ''] = out.replace(/\n$/, '').split('\n');
+    const [k, meta = ''] = line.split('\t');
+    const doc = docs.find((d) => d.key === k);
+    typed = q;
+    if ((code === 0 || code === 1) && key === 'ctrl-r') {
+      if (live || running(si)) { if (!running(si)) startIndexer(); continue; }
+      // Old fzf cannot show a background run, so refresh here, then reopen.
+      try { await refreshIndex(si, repos, slugOf, SEMANTIC); } catch (err) { say(`${red(`${PKG}:`)} refresh failed: ${err.message}`); }
+      continue;
     }
-  } finally {
-    server.close();
-    const p = running(si);
-    if (p) say(dim(`${PKG}: indexing continues in the background (${p.text}); the next window shows its progress`));
+    if ((code === 0 || code === 1) && key === 'ctrl-o') { if (doc) openUrl(urlOf(doc, meta)); continue; }
+    if (code === 1) die('E_NO_MATCH', 'no repository selected');
+    if (code !== 0) die('E_FZF', `fzf exited with status ${code}`);
+    if (!doc) die('E_NO_MATCH', 'no repository selected');
+    return doc;
   }
+}
+
+// The window's meaning search: on a worker thread, 250 ms after typing stops,
+// and only for the query still on screen.
+function meaningWorker() {
+  if (!SEMANTIC) return async () => [];
+  const worker = new Worker(new URL('../lib/meaning-worker.mjs', import.meta.url), { workerData: { env: process.env } });
+  worker.unref();
+  const waiting = new Map();
+  let n = 0;
+  worker.on('message', ({ id, hits }) => { waiting.get(id)?.(hits); waiting.delete(id); });
+  worker.on('error', () => { for (const done of waiting.values()) done([]); waiting.clear(); });
+  return async (q, signal) => {
+    const { afterPause } = await import('../lib/serve.mjs');
+    if (q.trim().length < 2 || !(await afterPause(250, signal))) return [];
+    const id = ++n;
+    return new Promise((resolve) => {
+      waiting.set(id, resolve);
+      signal.addEventListener('abort', () => { waiting.delete(id); resolve([]); }, { once: true });
+      worker.postMessage({ id, query: q });
+    });
+  };
 }
 
 // ── main flow ────────────────────────────────────────────────────────────────
@@ -1016,10 +1044,11 @@ async function main() {
   const rank = await import('../lib/rank.mjs');
   if (isNonInteractive) {
     // Scripts and agents get a clone, always: `path` must exist (I7).
-    const all = rank.keywordRank(si.readDocs(repos, slugOf), query);
-    const hits = all.filter((h) => h.cloned);
+    const docs = si.readDocs(repos, slugOf);
+    // Rank the clones alone: hundreds of org repositories must not crowd them out.
+    const hits = rank.keywordRank(docs.filter((d) => d.cloned), query);
     if (hits.length === 0) {
-      const far = all[0];
+      const [far] = rank.keywordRank(docs.filter((d) => !d.cloned), query, { limit: 1 });
       die('E_NO_MATCH', far
         ? `no clone matched '${query}'; ${far.slug} is on GitHub: ghq get https://${far.slug}`
         : `no repository matched '${query}'`);
@@ -1031,7 +1060,7 @@ async function main() {
     matches = hits.length;
     if (hits[0].field === 'issue') extra = { issue: hits[0].number };
   } else {
-    const doc = (query && fastPath(rank, si.readDocs(repos, slugOf), query)) || await searchWindow(si, repos, slugOf);
+    const doc = (query && rank.landing(si.readDocs(repos, slugOf), query)) || await searchWindow(si, repos, slugOf);
     selected = doc.cloned ? doc.key : clone(doc.slug);
     matches = 1;
   }

@@ -1,7 +1,7 @@
 // The ranker behind the one search window. Pure: documents in, hits out.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { keywordRank, nameHits, pathHits } from '../lib/rank.mjs';
+import { keywordRank, nameHits, pathHits, landing } from '../lib/rank.mjs';
 
 const doc = (name, extra = {}) => ({
   key: `/r/${name}`, slug: `github.com/alice/${name}`, name, cloned: true, ...extra,
@@ -72,4 +72,17 @@ test('pathHits keeps hits found by name, slug, or subsequence: what fzf matched 
   const docs = [doc('alchemy', { slug: 'git.pepabo.com/hosting/alchemy' }), doc('notes', { readme: 'hosting' })];
   assert.deepEqual(order(pathHits(keywordRank(docs, 'hosting/alc'))), ['alchemy']);
   assert.deepEqual(order(pathHits(keywordRank(docs, 'hosting'))), ['alchemy']);
+});
+
+test('full-width letters from a Japanese IME match, both in the query and in the text', () => {
+  const hits = keywordRank([doc('tool', { description: 'ＧｉｔＨｕｂ helper' }), doc('github-x')], 'ｇｉｔｈｕｂ');
+  assert.deepEqual(order(hits), ['github-x', 'tool']);
+});
+
+test('landing: a unique clone lands, else a unique name among repositories not cloned', () => {
+  const far = (name) => doc(name, { key: `github.com/alice/${name}`, cloned: false });
+  assert.equal(landing([doc('api'), doc('web')], 'api').key, '/r/api');
+  assert.equal(landing([doc('web'), far('lj')], 'lj').key, 'github.com/alice/lj');
+  assert.equal(landing([doc('api'), doc('api-x')], 'api'), null, 'two clones: open the window');
+  assert.equal(landing([doc('load-json'), far('lj')], 'lj'), null, 'a weak subsequence clone must not hide an exact name');
 });

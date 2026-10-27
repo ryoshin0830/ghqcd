@@ -371,7 +371,9 @@ async function fakeGitHub() {
       const { query, variables } = JSON.parse(body);
       if (query.includes('viewer{')) { // not viewerPermission
         // The org-wide listing (ownerAffiliations) adds a repository you only see as a member.
-        const all = query.includes('ownerAffiliations') ? [...viewer, { nameWithOwner: 'org/kiwi', description: 'org repo', pushedAt: '2026-09-01T00:00:00Z' }] : viewer;
+        // GitHub needs both filters to include ORGANIZATION_MEMBER for that.
+        const orgWide = /ownerAffiliations:\[[^\]]*ORGANIZATION_MEMBER/.test(query) && /[^r]affiliations:\[[^\]]*ORGANIZATION_MEMBER/.test(query);
+        const all = orgWide ? [...viewer, { nameWithOwner: 'org/kiwi', description: 'org repo', pushedAt: '2026-09-01T00:00:00Z' }] : viewer;
         const nodes = req.headers.authorization === 'bearer t' ? all : [];
         res.setHeader('content-type', 'application/json');
         res.end(JSON.stringify({ data: { viewer: { repositories: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } }));
@@ -432,6 +434,27 @@ test('--index also stores repositories you can reach but have not cloned', async
     gh.server.close();
     rmSync(cache, { recursive: true, force: true });
   }
+});
+
+test('--json finds a matching clone even when hundreds of repositories that are not cloned rank higher', () => {
+  const cache = tempCache();
+  const repos = { [REPOS[1]]: { slug: 'github.com/alice/banana', name: 'banana', cloned: true, readme: 'a client for the api', issues: [] } };
+  for (let i = 0; i < 250; i++) repos[`github.com/org/api-${i}`] = { slug: `github.com/org/api-${i}`, name: `api-${i}`, cloned: false, lite: true, issues: [] };
+  writeFileSync(join(cache, 'index.json'), JSON.stringify({ repos }));
+  const r = run(['--json', 'api'], { env: { GHQCD_CACHE_DIR: cache } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).path, REPOS[1]);
+  rmSync(cache, { recursive: true, force: true });
+});
+
+test('--index without a token tells the window how to add GitHub, and locks the cache dir down', async () => {
+  const cache = tempCache();
+  chmodSync(cache, 0o755);
+  const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(JSON.parse(readFileSync(join(cache, 'progress.json'), 'utf8')).hint, /gh auth login/);
+  assert.equal(statSync(cache).mode & 0o777, 0o700, 'the sockets in it rely on this');
+  rmSync(cache, { recursive: true, force: true });
 });
 
 function tempCache() {

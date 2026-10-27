@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readDocs } from '../lib/search-index.mjs';
+import { readDocs, needsRefresh } from '../lib/search-index.mjs';
 
 test('readDocs merges the index with clones ghq knows, and a new clone replaces its remote entry', () => {
   const cache = mkdtempSync(join(tmpdir(), 'ghqcd-docs-'));
@@ -22,12 +22,25 @@ test('readDocs merges the index with clones ghq knows, and a new clone replaces 
     assert.equal(by['github.com/a/far'].cloned, false);
     assert.equal(by['github.com/a/new'].key, '/r/github.com/a/new', 'the clone wins');
     assert.equal(by['github.com/a/new'].description, 'cloned since', 'and keeps what the index knew');
+    assert.equal(by['github.com/a/new'].alias, 'github.com/a/new', 'the old key, so vectors embedded before the clone still resolve');
     assert.equal(by['github.com/a/fresh'].name, 'fresh');
     assert.equal(by['github.com/a/fresh'].cloned, true);
     const gone = readDocs(['/r/github.com/a/new'], (p) => p.slice(3), { GHQCD_CACHE_DIR: cache }).find((d) => d.slug === 'github.com/a/old');
-    assert.deepEqual([gone.key, gone.cloned], ['github.com/a/old', false], 'a clone deleted since indexing is offered for cloning again');
+    assert.deepEqual([gone.key, gone.cloned, gone.alias], ['github.com/a/old', false, '/r/github.com/a/old'], 'a clone deleted since indexing is offered for cloning again');
     assert.equal(readDocs(['/r/x/y/z'], (p) => p.slice(3), { GHQCD_CACHE_DIR: join(cache, 'none') })[0].slug, 'x/y/z', 'no index: clones only');
   } finally {
     rmSync(cache, { recursive: true, force: true });
   }
+});
+
+test('needsRefresh: missing or day-old index, missing vectors; not right after a failure', () => {
+  const now = Date.parse('2026-10-27T12:00:00Z');
+  const fresh = { textAt: now - 3600e3, semanticAt: now - 3600e3 };
+  assert.equal(needsRefresh({}, null, now, true), true);
+  assert.equal(needsRefresh(fresh, null, now, true), false);
+  assert.equal(needsRefresh({ ...fresh, textAt: now - 2 * 864e5 }, null, now, true), true);
+  assert.equal(needsRefresh({ textAt: fresh.textAt }, null, now, true), true, 'vectors never built');
+  assert.equal(needsRefresh({ textAt: fresh.textAt }, null, now, false), false, 'unless meaning search is off');
+  assert.equal(needsRefresh({}, { done: true, failed: true, at: now - 600e3 }, now, true), false, 'a failure ten minutes ago is not retried on every window');
+  assert.equal(needsRefresh({}, { done: true, failed: true, at: now - 7 * 3600e3 }, now, true), true);
 });
