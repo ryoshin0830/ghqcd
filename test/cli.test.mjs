@@ -682,3 +682,34 @@ test('--index --json reports an unusable cache as E_INDEX, not a raw errno', asy
   assert.equal(r.status, 1);
   assert.equal(jsonLine(r.stderr).error.code, 'E_INDEX');
 });
+
+test('a truncated index.json is no index: picking still works, and --index rewrites it', async () => {
+  const cache = tempCache();
+  writeFileSync(join(cache, 'index.json'), '{"repos":');
+  try {
+    const r = run(['--json', 'apple'], { env: { GHQCD_CACHE_DIR: cache } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).path, REPOS[0]);
+    const idx = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' });
+    assert.equal(idx.status, 0, idx.stderr);
+    assert.ok(JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8')).repos[REPOS[0]]);
+  } finally {
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('--index matches a clone to its GitHub repository whatever the case of its path', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  const apple = `${ROOT}/github.com/Alice/Apple`;
+  try {
+    const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't' }, { repos: [apple] });
+    assert.equal(r.status, 0, r.stderr);
+    const { repos } = JSON.parse(readFileSync(join(cache, 'index.json'), 'utf8'));
+    assert.equal(repos['github.com/alice/apple'], undefined, 'listed once, as the clone');
+    assert.equal(repos[apple].description, 'apple description');
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
+  }
+});

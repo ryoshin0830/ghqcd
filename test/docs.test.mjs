@@ -44,3 +44,21 @@ test('needsRefresh: missing or day-old index, missing vectors; not right after a
   assert.equal(needsRefresh({}, { done: true, failed: true, at: now - 600e3 }, now, true), false, 'a failure ten minutes ago is not retried on every window');
   assert.equal(needsRefresh({}, { done: true, failed: true, at: now - 7 * 3600e3 }, now, true), true);
 });
+
+test('readDocs: a clone whose path differs from GitHub only in case is the same repository', () => {
+  const cache = mkdtempSync(join(tmpdir(), 'ghqcd-docs-'));
+  try {
+    writeFileSync(join(cache, 'index.json'), JSON.stringify({ repos: {
+      'github.com/alice/tools': { slug: 'github.com/alice/tools', name: 'tools', cloned: false, description: 'from GitHub', issues: [] },
+    } }));
+    const docs = readDocs(['/r/github.com/Alice/Tools'], (p) => p.slice(3), { GHQCD_CACHE_DIR: cache });
+    assert.deepEqual(docs.map((d) => [d.key, d.cloned, d.description]), [['/r/github.com/Alice/Tools', true, 'from GitHub']]);
+  } finally {
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('readDocs: the same repository cloned under two ghq roots is listed twice, once per clone', () => {
+  const docs = readDocs(['/a/github.com/x/api', '/b/github.com/x/api'], (p) => p.slice(3), { GHQCD_CACHE_DIR: join(tmpdir(), 'ghqcd-none') });
+  assert.deepEqual(docs.map((d) => [d.key, d.cloned]), [['/a/github.com/x/api', true], ['/b/github.com/x/api', true]]);
+});
