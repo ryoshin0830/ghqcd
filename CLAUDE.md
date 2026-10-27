@@ -267,6 +267,13 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   `change-footer` over `--listen=<cache>/fzf-<pid>.sock`, and `reload`s when
   `status.json` changes. An fzf without `--footer` + Unix-socket `--listen`
   (probed with `fzf --filter`, 27 ms) gets the status once as a header.
+- **ctrl-r never closes a live window:** it is `execute-silent` of
+  `--serve-refresh <sock>`, and the parent starts the run. Whoever starts a
+  run writes `progress.json` (`starting`, with `since`) at once: the run's own
+  first report waits for GitHub's first page (5-10 s for 100 READMEs), and a
+  bar that did not move for that long read as "ctrl-r does nothing". A
+  finished run's receipt, and any host it could not read, stays in the bar
+  for a minute. GraphQL 5xx is retried once (github.com 502s on heavy pages).
 - **Listings:** per host, your repositories (owned / shared) with README,
   issues (writable only, 100 newest) and vectors; everything your
   organizations share with name, description and last push only (`lite`; one
@@ -399,7 +406,7 @@ The interactive fzf UI cannot be tested there. Run these by hand:
 | Ctrl-C | `ghqcd`, press Ctrl-C | exit 130, cursor restored |
 | Preview pane | `ghqcd` at ≥ 100 columns | description, README or issue, recent commits |
 | Labels | type a sentence; type a function name | `~readme` / `~issue` lines, then `code` lines, below `name` / `desc` / `readme` / `issue`; preview says "matched … by …" |
-| Status bar | `ghqcd`, ctrl-r | footer streams the background index run; closing says it continues |
+| Status bar | `ghqcd`, type, ctrl-r | query and list stay; the footer says `refreshing 1 s / ~…` at once, counts move, then the receipt; closing says it continues |
 | ctrl-o | `ghqcd`, ctrl-o | the repository (issue, file) opens in the browser; the window reopens |
 | Narrow window | `ghqcd` at 80x24 and 60 columns | preview hidden, 8 result rows, footer not cut |
 | npx one-shot | `npx ghqcd <q>` | box on terminal, `c` copies the cd command |

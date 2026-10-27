@@ -371,7 +371,8 @@ async function fakeGitHub() {
   ];
   const server = createServer((req, res) => {
     server.auth.add(req.headers.authorization);
-    if (server.fail) { res.statusCode = 401; res.end(); return; }
+    if (server.fail || req.headers.authorization === server.refuse) { res.statusCode = 401; res.end(); return; }
+    if (server.flaky > 0) { server.flaky--; res.statusCode = 502; res.end(); return; }
     let body = '';
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
@@ -716,12 +717,12 @@ test('--index matches a clone to its GitHub repository whatever the case of its 
 
 // The window itself, under a pty (expect), with an fzf that records how it
 // was started and leaves as Esc would. Only the arguments are checked here;
-// the UI is in CLAUDE.md's manual matrix.
-test('the window opens under a deep cache dir and passes queries that start with - safely', (t) => {
+// the UI is in CLAUDE.md's manual matrix. prepare(cache) sets the cache up.
+function openWindow(t, { cache, prepare = () => {} } = {}) {
   if (spawnSync('expect', ['-v'], { stdio: 'ignore' }).error) return t.skip('expect not installed');
   const shims = makeShims();
   const base = tempCache();
-  const cache = join(base, 'c'.repeat(120));
+  cache ??= join(base, 'cache');
   const out = join(base, 'fzf-args');
   writeFileSync(join(shims, 'fzf'), `#!/bin/sh
 case "$1" in --version) echo 0.74.1; exit 0 ;; --filter*) exit 0 ;; esac
@@ -730,22 +731,108 @@ exit 130
 `);
   try {
     spawnSync('mkdir', ['-p', cache]);
-    // Fresh: no background --index from this test.
-    writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.now() }));
-    const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache };
+    prepare(cache);
+    const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' };
     delete env.FORCE_COLOR;
     // timeout: a window that hangs must fail the release gate, not hold it for 6 h.
     const r = spawnSync('expect', ['-c', `spawn ${process.execPath} ${BIN}; expect eof; catch wait result; exit [lindex $result 3]`], { encoding: 'utf8', env, timeout: 30000 });
     assert.equal(r.status, 130, r.stdout);
-    const args = readFileSync(out, 'utf8').split('\n');
-    const listen = args.find((a) => a.startsWith('--listen='));
-    assert.ok(listen && Buffer.byteLength(listen) - '--listen='.length < 104, listen);
-    assert.ok(args.some((a) => a.startsWith('--bind=change:reload:') && a.endsWith(' -- {q}')), 'a query starting with - is no option');
-    assert.ok(args.some((a) => a.startsWith('--preview=') && a.endsWith(' -- {1} {2} {q}')));
-    assert.ok(args.includes('SHELL=/bin/sh'), 'fzf runs our commands with a POSIX shell, whatever the login shell');
-  } finally {
+    return { args: readFileSync(out, 'utf8').split('\n'), cache, base, shims };
+  } catch (e) {
     rmSync(shims, { recursive: true, force: true });
     rmSync(base, { recursive: true, force: true });
+    throw e;
+  }
+}
+const closeWindow = (w) => { rmSync(w.shims, { recursive: true, force: true }); rmSync(w.base, { recursive: true, force: true }); };
+// Fresh: no background --index from the window.
+const freshIndex = (cache) => writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.now() }));
+
+test('the window opens under a deep cache dir and passes queries that start with - safely', (t) => {
+  const base = tempCache();
+  const w = openWindow(t, { cache: join(base, 'c'.repeat(120)), prepare: freshIndex });
+  if (!w) return rmSync(base, { recursive: true, force: true });
+  try {
+    const listen = w.args.find((a) => a.startsWith('--listen='));
+    assert.ok(listen && Buffer.byteLength(listen) - '--listen='.length < 104, listen);
+    assert.ok(w.args.some((a) => a.startsWith('--bind=change:reload:') && a.endsWith(' -- {q}')), 'a query starting with - is no option');
+    assert.ok(w.args.some((a) => a.startsWith('--preview=') && a.endsWith(' -- {1} {2} {q}')));
+    assert.ok(w.args.includes('SHELL=/bin/sh'), 'fzf runs our commands with a POSIX shell, whatever the login shell');
+  } finally {
+    closeWindow(w);
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('ctrl-r refreshes without closing the window', (t) => {
+  const w = openWindow(t, { prepare: freshIndex });
+  if (!w) return;
+  try {
+    assert.ok(w.args.includes('--expect=ctrl-o'), w.args.find((a) => a.startsWith('--expect')));
+    assert.ok(w.args.some((a) => a.startsWith('--bind=ctrl-r:execute-silent:') && / --serve-refresh '[^']+'$/.test(a)));
+  } finally {
+    closeWindow(w);
+  }
+});
+
+test('the window says at once that it started a refresh, before GitHub has answered', async (t) => {
+  const w = openWindow(t); // no index yet: the window starts one
+  if (!w) return;
+  try {
+    const footer = w.args.find((a) => a.startsWith('--footer='));
+    assert.match(footer, /^--footer=refreshing \d+ s: starting/);
+    // Let the background run finish before its cache goes away.
+    for (let i = 0; i < 200 && !JSON.parse(readFileSync(join(w.cache, 'progress.json'), 'utf8')).done; i++) await new Promise((r) => setTimeout(r, 50));
+  } finally {
+    closeWindow(w);
+  }
+});
+
+test('a refresh that just finished leaves its result in the footer for a minute', (t) => {
+  const w = openWindow(t, {
+    prepare: (cache) => {
+      freshIndex(cache);
+      writeFileSync(join(cache, 'progress.json'), JSON.stringify({ pid: 1, at: Date.now(), done: true, text: 'indexed 5 repositories in 2 s · not read: github.com: HTTP 502' }));
+    },
+  });
+  if (!w) return;
+  try {
+    assert.match(w.args.find((a) => a.startsWith('--footer=')), /^--footer=indexed 5 repositories in 2 s · not read: github\.com/);
+  } finally {
+    closeWindow(w);
+  }
+});
+
+test('--serve-refresh asks the window to refresh', async () => {
+  const { startServer, socketPath } = await import('../lib/serve.mjs');
+  const dir = tempCache();
+  const socket = socketPath(dir);
+  let got;
+  const server = await startServer(socket, async (p) => { got = p; });
+  try {
+    const r = await runAsync(['--serve-refresh', socket], {});
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(got, { refresh: true });
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('--index asks again when GitHub answers a page with 502, and names a host it could not read', async () => {
+  const cache = tempCache();
+  const gh = await fakeGitHub();
+  gh.server.flaky = 1; // one 502, then answers
+  gh.server.refuse = 'bearer e'; // the GHE host rejects its token
+  try {
+    const r = await runAsync(['--index', '--json'], { GHQCD_CACHE_DIR: cache, GHQCD_GITHUB_API: gh.url, GH_TOKEN: 't', GH_ENTERPRISE_TOKEN: 'e', GH_HOST: 'git.example.com' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(JSON.parse(r.stdout).remote, 2, 'github.com was read despite the 502');
+    const done = JSON.parse(readFileSync(join(cache, 'progress.json'), 'utf8'));
+    assert.match(done.text, /^indexed \d+ repositories in \d+ s · .* · not read: git\.example\.com/);
+  } finally {
+    gh.server.close();
+    rmSync(cache, { recursive: true, force: true });
   }
 });
 

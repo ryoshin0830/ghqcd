@@ -114,7 +114,7 @@ organizations share.
 │ ▌ ~readme github.com/alice/links  把长网址缩短后分享                   │
 │ ▌ code    github.com/alice/web  src/url.js:8 export function short…  │
 │ ──────────────────────────────────────────────────────────────────── │
-│   indexed 2 h ago · enter go · ctrl-o open on GitHub · ctrl-r refresh│
+│   indexed 2 h ago · ctrl-r refresh · enter go · ctrl-o open on GitHub│
 ╰──────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -147,7 +147,7 @@ hits are added below them as they arrive.
 | type | search |
 | Enter | go to the repository — `ghq get` first if it is not cloned |
 | ctrl-o | open it on GitHub (the issue, or the file, when that is what matched) |
-| ctrl-r | refresh the index now |
+| ctrl-r | refresh the index now; the window stays open and the bar says how long it has run (`refreshing 40 s / ~2 min: …`), then what it found |
 | Esc | leave (exit 130, nothing printed) |
 
 `ghqcd <query>` still lands without the window when the match is clear: one

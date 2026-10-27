@@ -124,6 +124,7 @@ try {
       // fzf's reload and preview commands: clients of the window's query server.
       'serve-query': { type: 'string' },
       'serve-preview': { type: 'string' },
+      'serve-refresh': { type: 'string' }, // fzf's ctrl-r: refresh without closing the window
       json: { type: 'boolean' },
       quiet: { type: 'boolean' },
       'no-color': { type: 'boolean' },
@@ -136,11 +137,12 @@ try {
   emitEarlyError(err.message);
 }
 
-if (values['serve-query'] != null || values['serve-preview'] != null) {
+const serve = values['serve-query'] ?? values['serve-preview'] ?? values['serve-refresh'];
+if (serve != null) {
   const { queryClient } = await import('../lib/serve.mjs');
-  await (values['serve-query'] != null
-    ? queryClient(values['serve-query'], { q: positionals.join(' ') })
-    : queryClient(values['serve-preview'], { preview: positionals[0] ?? '', meta: positionals[1] ?? '', q: positionals.slice(2).join(' ') }));
+  await queryClient(serve, values['serve-query'] != null ? { q: positionals.join(' ') }
+    : values['serve-preview'] != null ? { preview: positionals[0] ?? '', meta: positionals[1] ?? '', q: positionals.slice(2).join(' ') }
+    : { refresh: true });
   process.exit(0);
 }
 
@@ -694,7 +696,7 @@ async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {
     // whose indexer runs on in the background.
     if (!hinted && s.startsWith('embedding') && / min left/.test(s)) { hinted = true; say(dim('ctrl-c stops; the next run resumes where it stopped')); }
     progress(s);
-    if (Date.now() - wrote > 500) { wrote = Date.now(); si.writeProgress({ text: s }); }
+    if (Date.now() - wrote > 500) { wrote = Date.now(); si.writeProgress({ text: s, since: t0 }); }
   };
   const s = si.readStatus();
   const at = semantic ? s.semanticAt : s.textAt;
@@ -722,8 +724,10 @@ async function refreshIndex(si, repos, slugOf, semantic, { verbose = false } = {
     const receipt = `indexed ${repos.length + stats.remote} repositories in ${took}` +
       (semantic ? ` · ${res.changed} ${res.changed === 1 ? 'README or issue' : 'READMEs or issues'} changed` : ` · ${stats.issues} issues`);
     say(`${green('✓')} ${receipt}`);
+    const failed = !stats.github && stats.errors > 0;
     si.writeProgress({
-      done: true, text: stats.errors ? `GitHub could not be read: ${stats.firstError}` : receipt, failed: !stats.github && stats.errors > 0,
+      // A host that could not be read is named beside the receipt, not instead of it.
+      done: true, failed, text: failed ? `GitHub could not be read: ${stats.firstError}` : `${receipt}${stats.errors ? ` · not read: ${stats.firstError}` : ''}`,
       // The window's footer is the only place a background run can say this.
       ...((!stats.github && stats.skipped && { hint: 'no GitHub token: run gh auth login, then ctrl-r' }) || (ignored && { hint: ignored })),
     });
@@ -784,11 +788,14 @@ function liveFzf(dir) {
 
 // The index refreshes itself: a detached, low-priority `ghqcd --index` that
 // outlives the window if it has to and reports through progress.json. The
-// lock in --index keeps it to one at a time.
-function startIndexer() {
+// lock in --index keeps it to one at a time. Its first report comes only once
+// GitHub has answered (5-10 s for a page of READMEs), so the bar says
+// "starting" at once: ctrl-r used to look like it did nothing.
+function startIndexer(si) {
   const child = spawn(process.execPath, [SELF, '--index'], { detached: true, stdio: 'ignore' });
   try { setPriority(child.pid, 19); } catch { /* not allowed here: run at normal priority */ }
   child.unref();
+  si.writeProgress({ pid: child.pid, since: Date.now(), text: 'starting' });
 }
 const running = (si) => {
   const p = si.readProgress();
@@ -802,12 +809,19 @@ function statusLine(si) {
   // The bar sits under the list: half the width while the preview shows.
   const cols = stderr.columns || 80;
   const width = (cols >= 100 ? Math.floor(cols / 2) : cols) - 4;
-  if (running(si)) return fit(`indexing in the background: ${p.text}`, width);
+  // How long it has run and roughly how long the last one took: a refresh
+  // reads every repository list and can take minutes.
+  if (running(si)) {
+    const cost = refreshCost(si, SEMANTIC, false);
+    return fit(`refreshing${p.since ? ` ${si.duration((Date.now() - p.since) / 1000)}${cost ? ` / ${cost}` : ''}` : ''}: ${p.text}`, width);
+  }
   if (p?.failed) return fit(`! indexing failed: ${p.text} · ctrl-r retries`, width);
   const at = si.readStatus().textAt;
+  // A run that just finished says what it did, and which host it could not read.
+  const head = p?.hint ?? (p?.done && Date.now() - p.at < 60e3 ? p.text
+    : at ? `indexed ${ago(at)}` : 'ctrl-r also searches GitHub: your repositories, READMEs and issues');
   // Cut from the right: ctrl-r first, the one key nothing else on screen names.
-  return fit([p?.hint ?? (at ? `indexed ${ago(at)}` : 'ctrl-r also searches GitHub: your repositories, READMEs and issues'),
-    'ctrl-r refresh', 'enter go', 'ctrl-o open on GitHub'].join(' · '), width);
+  return fit([head, 'ctrl-r refresh', 'enter go', 'ctrl-o open on GitHub'].join(' · '), width);
 }
 
 let matchLabel, matchContext, LABELS, flat; // from lib/rank.mjs, loaded with the window
@@ -927,11 +941,13 @@ async function searchWindow(si, repos, slugOf) {
     });
   };
   const server = await startServer(socketPath(dir), async (p, write, signal) => {
+    // ctrl-r: the bar picks the run up on its next tick, within 0.5 s.
+    if (p.refresh) return void (running(si) || startIndexer(si));
     if (p.preview != null) return preview(docs, p.preview, p.meta ?? '', p.q ?? '').forEach(write);
     return stream(String(p.q ?? ''), write, signal);
   });
   const socket = socketPath(dir);
-  if (stale(si) && !running(si)) startIndexer();
+  if (stale(si) && !running(si)) startIndexer(si);
   const live = liveFzf(dir);
   const fzfSock = join(dir, `fzf-${process.pid}.sock`);
   // A Ctrl-C during the clone after the window must still clean up. Only
@@ -967,12 +983,14 @@ async function searchWindow(si, repos, slugOf) {
     const args = [
       '--height=40%', '--layout=reverse', '--border', '--prompt=repo> ',
       '--disabled', '--ansi', '--no-sort', '--delimiter=\t', '--with-nth=3..', '--no-hscroll',
-      '--print-query', '--expect=ctrl-o,ctrl-r', `--query=${typed}`,
+      '--print-query', `--query=${typed}`,
       // `--`: a query such as `--init` is a query, not an option.
       `--bind=change:reload:${CLIENT} --serve-query ${shq(socket)} -- {q}`,
       `--preview=${CLIENT} --serve-preview ${shq(socket)} -- {1} {2} {q}`,
       '--preview-window=right,50%,wrap,border-left,<50(hidden)', '--min-height=14', '--header-lines=1',
-      ...(live ? [`--footer=${status}`, `--listen=${fzfSock}`] : [`--header=${status}`]),
+      // A live fzf refreshes in place; an old one closes, refreshes here and reopens.
+      ...(live ? ['--expect=ctrl-o', `--bind=ctrl-r:execute-silent:${CLIENT} --serve-refresh ${shq(socket)}`, `--footer=${status}`, `--listen=${fzfSock}`]
+        : ['--expect=ctrl-o,ctrl-r', `--header=${status}`]),
     ];
     // fzf runs reload and preview with $SHELL; those commands are POSIX sh,
     // which a login shell like nu or pwsh is not.
@@ -1000,7 +1018,7 @@ async function searchWindow(si, repos, slugOf) {
     const doc = docs.find((d) => d.key === k);
     typed = q;
     if ((code === 0 || code === 1) && key === 'ctrl-r') {
-      if (live || running(si)) { if (!running(si)) startIndexer(); continue; }
+      if (running(si)) continue;
       // Old fzf cannot show a background run, so refresh here, then reopen.
       try { await refreshIndex(si, repos, slugOf, SEMANTIC); } catch (err) { say(`${red(`${PKG}:`)} refresh failed: ${err.message}`); }
       continue;
