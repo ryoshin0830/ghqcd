@@ -85,6 +85,9 @@ test('landing: a unique clone lands, else a unique name among repositories not c
   assert.equal(landing([doc('web'), far('lj')], 'lj').key, 'github.com/alice/lj');
   assert.equal(landing([doc('api'), doc('api-x')], 'api'), null, 'two clones: open the window');
   assert.equal(landing([doc('load-json'), far('lj')], 'lj'), null, 'a weak subsequence clone must not hide an exact name');
+  assert.equal(landing([doc('api', { description: 'Billing API for the shop' }), far('billing')], 'billing'), null,
+    'a clone matched by its description: open the window, never clone behind the user\'s back');
+  assert.equal(landing([doc('web'), far('docs-site')], 'docs-site').key, 'github.com/alice/docs-site', 'no clone matches: clone it');
 });
 
 test('matchLabel names the field and, with ~, a meaning match', () => {

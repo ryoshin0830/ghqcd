@@ -252,8 +252,9 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   (`--header-lines=1`): fzf keeps the old list until a line arrives.
 - **Fast path:** `ghqcd <q>` lands without the window on a unique clone matched
   by name, slug or subsequence (what fzf matched on the path before) unless a
-  not-cloned repository matches its name better, else on a unique not-cloned
-  name match (cloned first): `landing()` in `lib/rank.mjs`. Keep `ghqcd api`
+  not-cloned repository matches its name better, else — only when no clone
+  matches in any field — on a unique not-cloned name match (cloned first):
+  `landing()` in `lib/rank.mjs`. Keep `ghqcd api`
   landing. When no word matches any repository (`alweb`, `ali/web`),
   `fzf --filter` on the clone paths decides, as before the index: a unique
   path lands, and `--json` takes the best.
