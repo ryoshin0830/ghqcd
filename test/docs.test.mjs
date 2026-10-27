@@ -41,6 +41,7 @@ test('needsRefresh: missing or day-old index, missing vectors; not right after a
   assert.equal(needsRefresh({ ...fresh, textAt: now - 2 * 864e5 }, null, now, true), true);
   assert.equal(needsRefresh({ textAt: fresh.textAt }, null, now, true), true, 'vectors never built');
   assert.equal(needsRefresh({ textAt: fresh.textAt }, null, now, false), false, 'unless meaning search is off');
+  assert.equal(needsRefresh({ textAt: now, semanticAt: fresh.semanticAt }, null, now, true), true, 'text updated with vectors off: catch up when enabled');
   assert.equal(needsRefresh({}, { done: true, failed: true, at: now - 600e3 }, now, true), false, 'a failure ten minutes ago is not retried on every window');
   assert.equal(needsRefresh({}, { done: true, failed: true, at: now - 7 * 3600e3 }, now, true), true);
 });

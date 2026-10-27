@@ -66,13 +66,15 @@ ghqcd --json "upload stalls"
 
 The payload adds `"issue": <number>` when an issue matched rather than the
 name. Meaning search (any language) and code search exist only in the
-interactive window, not in `--json`.
+interactive window, not in `--json`. Vector search is off by default; the user
+can enable it with Shift+Tab in the window.
 
 `--json` only ever returns a clone, so `path` always exists. When the best match
 is a repository that is not cloned, it exits 2 (`E_NO_MATCH`) and the message
 names the `ghq get https://…` command: offer to run it. It never starts an index
 run; do not run `ghqcd --index` yourself unasked — it reads private repositories
-and issues through the GitHub API and, the first time, downloads a 1.2 GB model.
+and issues through the GitHub API. With `GHQCD_SEMANTIC=1`, the first vector
+index also downloads a 1.2 GB model; normal text indexing does not.
 
 To enumerate instead of picking:
 

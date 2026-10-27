@@ -780,7 +780,7 @@ test('the window says at once that it started a refresh, before GitHub has answe
   if (!w) return;
   try {
     const footer = w.args.find((a) => a.startsWith('--footer='));
-    assert.match(footer, /^--footer=refreshing \d+ s: starting/);
+    assert.match(footer, /^--footer=refreshing: starting/);
     // Let the background run finish before its cache goes away.
     for (let i = 0; i < 200 && !JSON.parse(readFileSync(join(w.cache, 'progress.json'), 'utf8')).done; i++) await new Promise((r) => setTimeout(r, 50));
   } finally {
@@ -797,7 +797,8 @@ test('a refresh that just finished leaves its result in the footer for a minute'
   });
   if (!w) return;
   try {
-    assert.match(w.args.find((a) => a.startsWith('--footer=')), /^--footer=indexed 5 repositories in 2 s · not read: github\.com/);
+    assert.match(w.args.find((a) => a.startsWith('--footer=')), /^--footer=updated just now · indexed 5 repositories in 2 s/);
+    assert.match(w.args.join('\n'), /not read: github\.com/);
   } finally {
     closeWindow(w);
   }
@@ -817,6 +818,82 @@ test('--serve-refresh asks the window to refresh', async () => {
     server.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('--index defaults to text only without installing the vector runtime', () => {
+  const shims = makeShims();
+  const cache = tempCache();
+  writeFileSync(join(shims, 'npm'), '#!/bin/sh\necho unexpected-runtime-install >&2\nexit 97\n');
+  chmodSync(join(shims, 'npm'), 0o755);
+  try {
+    const r = run(['--index', '--json'], { shims, env: {
+      GHQCD_CACHE_DIR: cache, GHQCD_SEMANTIC: undefined,
+      GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', GITHUB_ENTERPRISE_TOKEN: '',
+    } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(existsSync(join(cache, 'runtime')), false);
+    assert.equal(existsSync(join(cache, 'models')), false);
+    assert.ok(JSON.parse(r.stdout).repos > 0);
+  } finally {
+    rmSync(shims, { recursive: true, force: true });
+    rmSync(cache, { recursive: true, force: true });
+  }
+});
+
+test('--serve-toggle-vectors asks the window to switch vector mode', async () => {
+  const { startServer, socketPath } = await import('../lib/serve.mjs');
+  const dir = tempCache();
+  const socket = socketPath(dir);
+  let got;
+  const server = await startServer(socket, async (p) => { got = p; });
+  try {
+    const r = await runAsync(['--serve-toggle-vectors', socket], {});
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(got, { toggleVectors: true });
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the window shows vector mode and binds shift-tab without closing fzf', (t) => {
+  const w = openWindow(t, { prepare: freshIndex });
+  if (!w) return;
+  try {
+    assert.match(w.args.join('\n'), /shift-tab vectors OFF/);
+    assert.ok(w.args.some((a) => a.startsWith('--bind=shift-tab:execute-silent(') && a.includes('--serve-toggle-vectors')));
+  } finally { closeWindow(w); }
+});
+
+test('the window shows chunk progress and remaining time instead of historical refresh cost', (t) => {
+  const w = openWindow(t, { prepare: (cache) => {
+    writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.now() - 7200e3, textSeconds: 53 }));
+    writeFileSync(join(cache, 'progress.json'), JSON.stringify({
+      pid: process.pid, at: Date.now(), since: Date.now() - 540e3,
+      text: 'embedding 210 of 852 · about 20 min left',
+      phase: 'embedding', completed: 210, total: 852, remainingSeconds: 1200,
+    }));
+  } });
+  if (!w) return;
+  try {
+    const footer = w.args.find((a) => a.startsWith('--footer='));
+    assert.match(footer, /\[##--------\] 25%/);
+    assert.match(footer, /210\/852/);
+    assert.match(footer, /20 min left/);
+    assert.doesNotMatch(footer, /53 s/);
+  } finally { closeWindow(w); }
+});
+
+test('the window respects a live index lock even when progress names a dead contender', (t) => {
+  const w = openWindow(t, { prepare: (cache) => {
+    writeFileSync(join(cache, 'index.lock'), String(process.pid));
+    writeFileSync(join(cache, 'progress.json'), JSON.stringify({ pid: 2147483647, text: 'starting', at: Date.now() }));
+  } });
+  if (!w) return;
+  try {
+    assert.match(w.args.find((a) => a.startsWith('--footer=')), /^--footer=refreshing:/);
+    assert.equal(JSON.parse(readFileSync(join(w.cache, 'progress.json'), 'utf8')).pid, 2147483647, 'no competing child should replace the current progress');
+  } finally { closeWindow(w); }
 });
 
 test('--index asks again when GitHub answers a page with 502, and names a host it could not read', async () => {
@@ -861,7 +938,7 @@ test('Ctrl-C during the first --index is a cancel, not a failure the window then
   writeFileSync(join(shims, 'npm'), `#!/bin/sh\ntouch '${mark}'\nexec sleep 30\n`);
   chmodSync(join(shims, 'npm'), 0o755);
   const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' };
-  delete env.GHQCD_SEMANTIC; // the runtime install is the point
+  env.GHQCD_SEMANTIC = '1'; // the runtime install is the point
   delete env.FORCE_COLOR;
   // Its own process group, so the signal reaches it and npm the way Ctrl-C does.
   const child = spawn(process.execPath, [BIN, '--index'], { env, detached: true, stdio: ['ignore', 'ignore', 'pipe'] });

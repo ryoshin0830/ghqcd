@@ -284,8 +284,18 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   text. Code queries for repositories that are not cloned go to GitHub's code
   search, scoped to the user, after 0.7 s of no typing, at most 10 a minute per
   host; that is the only query text that leaves the machine.
-- **Meaning search is on by default** (the user's decision). `GHQCD_SEMANTIC=0`
-  skips the runtime, the 1.2 GB model and the vectors; tests set it.
+- **Vector search is off by default** (the user's decision). Shift+Tab toggles
+  it in the current window; `GHQCD_SEMANTIC=1` explicitly opts in at launch or
+  for `--index`. Disabled mode creates no search worker or vector indexing.
+  Disabling releases the search worker and pauses only a vector indexer that
+  this window started; cached models and completed vectors are retained.
+  A text-only refresh that finishes after enabling is followed by a vector
+  refresh. `needsRefresh` also catches vectors older than the text index.
+- **The status bar shows age or current progress**, never the previous text
+  fetch duration. `lib/status.mjs` formats phase-specific ASCII progress bars,
+  counts and vector ETAs. A second footer line always shows Shift+Tab and the
+  current mode. Unknown totals have no invented percentage. Progress callbacks
+  may pass structured `phase`, `completed`, `total`, `remainingSeconds` fields.
 - The model is pinned by revision and SHA-256 (`MODEL` in
   `lib/search-index.mjs`). Use the **fp16** export: it matches the reference
   FP32 model exactly, while the int8 export drifted (cosine median 0.835) and
@@ -406,7 +416,7 @@ The interactive fzf UI cannot be tested there. Run these by hand:
 | Ctrl-C | `ghqcd`, press Ctrl-C | exit 130, cursor restored |
 | Preview pane | `ghqcd` at ≥ 100 columns | description, README or issue, recent commits |
 | Labels | type a sentence; type a function name | `~readme` / `~issue` lines, then `code` lines, below `name` / `desc` / `readme` / `issue`; preview says "matched … by …" |
-| Status bar | `ghqcd`, type, ctrl-r | query and list stay; the footer says `refreshing 1 s / ~…` at once, counts move, then the receipt; closing says it continues |
+| Status bar | `ghqcd`, type, ctrl-r | query and list stay; the footer shows update age or phase progress/ETA; closing says it continues |
 | ctrl-o | `ghqcd`, ctrl-o | the repository (issue, file) opens in the browser; the window reopens |
 | Narrow window | `ghqcd` at 80x24 and 60 columns | preview hidden, 8 result rows, footer not cut |
 | npx one-shot | `npx ghqcd <q>` | box on terminal, `c` copies the cd command |
@@ -426,6 +436,7 @@ drive the interactive fzf UI by piping keystrokes into `script` — fzf reads
 - `bin/ghqcd.mjs` — the entire CLI (ESM, top-level await OK).
 - `lib/rank.mjs` — keyword ranking (pure; I12).
 - `lib/search-index.mjs` — the index, vectors, meaning search (I12).
+- `lib/status.mjs` — update age, phase progress and ETA copy.
 - `lib/serve.mjs` — the window's query server and result order (I12).
 - `lib/code.mjs` — code hits: git grep and GitHub code search (I12).
 - `lib/runtime/` — the pinned embedding runtime installed into the cache (I9b).
@@ -435,6 +446,8 @@ drive the interactive fzf UI by piping keystrokes into `script` — fzf reads
   user-visible interface change; document it in the commit.
 - `README.md` — end-user docs.
 - `test/cli.test.mjs` — shim-based CLI tests; `test/{rank,docs,serve,code}.test.mjs` — the search parts.
+- `test/window.test.mjs` — real-fzf PTY E2E with local model/GitHub fixtures;
+  `test/container/Dockerfile` provides a clean Linux test environment.
 - `docs/research/` — why the model, runtime and cut-offs are what they are. The
   experiment code and raw results (`poc/`) stay on the branch
   `poc/multilingual-repository-search` (PR #1).
