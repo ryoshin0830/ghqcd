@@ -1075,11 +1075,15 @@ async function main() {
   const si = await searchIndex();
   const rank = await import('../lib/rank.mjs');
   ({ matchLabel, matchContext } = rank);
+  const docs = query ? si.readDocs(repos, slugOf) : [];
+  // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
+  // way fzf did before the index existed, so those queries still land.
+  const fuzzy = () => (rank.keywordRank(docs, query, { limit: 1 }).length ? [] : fzfFilter(repos, query));
   if (isNonInteractive) {
     // Scripts and agents get a clone, always: `path` must exist (I7).
-    const docs = si.readDocs(repos, slugOf);
     // Rank the clones alone: hundreds of org repositories must not crowd them out.
-    const hits = rank.keywordRank(docs.filter((d) => d.cloned), query);
+    let hits = rank.keywordRank(docs.filter((d) => d.cloned), query);
+    if (hits.length === 0) hits = fuzzy().map((key) => ({ key }));
     if (hits.length === 0) {
       const [far] = rank.keywordRank(docs.filter((d) => !d.cloned), query, { limit: 1 });
       die('E_NO_MATCH', far
@@ -1093,7 +1097,11 @@ async function main() {
     matches = hits.length;
     if (hits[0].field === 'issue') extra = { issue: hits[0].number };
   } else {
-    const doc = (query && rank.landing(si.readDocs(repos, slugOf), query)) || await searchWindow(si, repos, slugOf);
+    const fuzzyOne = () => {
+      const [only, ...more] = fuzzy();
+      return only && !more.length ? docs.find((d) => d.key === only) : null;
+    };
+    const doc = (query && (rank.landing(docs, query) ?? fuzzyOne())) || await searchWindow(si, repos, slugOf);
     selected = doc.cloned ? doc.key : clone(doc.slug);
     matches = 1;
   }

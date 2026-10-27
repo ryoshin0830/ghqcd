@@ -254,7 +254,9 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   by name, slug or subsequence (what fzf matched on the path before) unless a
   not-cloned repository matches its name better, else on a unique not-cloned
   name match (cloned first): `landing()` in `lib/rank.mjs`. Keep `ghqcd api`
-  landing.
+  landing. When no word matches any repository (`alweb`, `ali/web`),
+  `fzf --filter` on the clone paths decides, as before the index: a unique
+  path lands, and `--json` takes the best.
 - **Clone on Enter:** `ghq get https://<slug>` with ghq's output on stderr
   (I1), then `ghq list -e -p <slug>`.
 - **The index refreshes itself:** the window starts a detached, nice-19

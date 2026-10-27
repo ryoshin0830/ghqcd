@@ -516,6 +516,13 @@ test('--json never picks a repository that is not cloned, and says how to clone 
   }
 });
 
+test('--json falls back to fzf on the path when no word matches, as before the index', () => {
+  // `test-root/…/ap` is in the path, not in any name or slug: what fzf matched before.
+  const r = run(['--json', 'test-root/github.com/alice/ap']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).path, REPOS[0]);
+});
+
 test('--json without any index still ranks clones by name, and starts no indexing', () => {
   const cache = tempCache();
   const r = run(['--json', 'banana'], { env: { GHQCD_CACHE_DIR: cache } });
