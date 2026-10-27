@@ -76,3 +76,28 @@ test('the README is not code: its line already shows above, as a readme hit', as
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a localized README (README.ja.md) is code: only the README the index reads is left out', async () => {
+  const dir = repo({ 'README.md': '# x\n', 'README.ja.md': '日本語の説明\n' });
+  try {
+    const docs = [{ key: dir, slug: 'github.com/a/x', cloned: true }];
+    const hits = await collect(codeSearch({ docs, query: '日本語', signal: new AbortController().signal }));
+    assert.deepEqual(hits.map((h) => h.loc), ['README.ja.md:1']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a file with a Japanese name is shown by its name, not by octal escapes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ghqcd-code-'));
+  writeFileSync(join(dir, '設計.md'), 'hello_world\n');
+  const git = (...a) => spawnSync('git', ['-C', dir, ...a], { stdio: 'ignore' });
+  git('init', '-q'); git('add', '.'); git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
+  try {
+    const docs = [{ key: dir, slug: 'github.com/a/x', cloned: true }];
+    const hits = await collect(codeSearch({ docs, query: 'hello_world', signal: new AbortController().signal }));
+    assert.deepEqual(hits.map((h) => h.loc), ['設計.md:1']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

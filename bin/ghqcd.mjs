@@ -459,8 +459,7 @@ function restoreCursor() {
 }
 
 process.on('exit', () => { disengageRawMode(); restoreCursor(); });
-// SIGINT too: a Ctrl-C during `ghq get` must still run the window's cleanup.
-for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+for (const sig of ['SIGTERM', 'SIGHUP']) {
   process.on(sig, () => { disengageRawMode(); restoreCursor(); process.exit(130); });
 }
 process.on('uncaughtException', (err) => {
@@ -935,6 +934,10 @@ async function searchWindow(si, repos, slugOf) {
   if (stale(si) && !running(si)) startIndexer();
   const live = liveFzf(dir);
   const fzfSock = join(dir, `fzf-${process.pid}.sock`);
+  // A Ctrl-C during the clone after the window must still clean up. Only
+  // here: elsewhere (npm ci, brew) the child would die first and be reported
+  // as a failure before this handler ran.
+  process.on('SIGINT', () => process.exit(130));
   // On every way out, Esc included (die() exits at once): sockets go, and a
   // background index run is mentioned so a first 1.2 GB download is not a secret.
   process.on('exit', () => {

@@ -734,7 +734,8 @@ exit 130
     writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.now() }));
     const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache };
     delete env.FORCE_COLOR;
-    const r = spawnSync('expect', ['-c', `spawn ${process.execPath} ${BIN}; expect eof; catch wait result; exit [lindex $result 3]`], { encoding: 'utf8', env });
+    // timeout: a window that hangs must fail the release gate, not hold it for 6 h.
+    const r = spawnSync('expect', ['-c', `spawn ${process.execPath} ${BIN}; expect eof; catch wait result; exit [lindex $result 3]`], { encoding: 'utf8', env, timeout: 30000 });
     assert.equal(r.status, 130, r.stdout);
     const args = readFileSync(out, 'utf8').split('\n');
     const listen = args.find((a) => a.startsWith('--listen='));
@@ -745,5 +746,52 @@ exit 130
   } finally {
     rmSync(shims, { recursive: true, force: true });
     rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('--serve-query passes a query that starts with - after --, as the window sends it', async () => {
+  const { startServer, socketPath } = await import('../lib/serve.mjs');
+  const dir = tempCache();
+  const socket = socketPath(dir);
+  let got;
+  const server = await startServer(socket, async (p, write) => { got = p; write('ok'); });
+  try {
+    const r = await runAsync(['--serve-query', socket, '--', '--init'], {});
+    assert.equal(r.stdout, 'ok\n', r.stderr);
+    assert.deepEqual(got, { q: '--init' });
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Ctrl-C during the first --index is a cancel, not a failure the window then reports for 6 h', async (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX process groups');
+  const shims = makeShims();
+  const cache = tempCache();
+  const mark = join(cache, 'npm-started');
+  // `npm ci` for the embedding runtime, slow enough to be interrupted.
+  writeFileSync(join(shims, 'npm'), `#!/bin/sh\ntouch '${mark}'\nexec sleep 30\n`);
+  chmodSync(join(shims, 'npm'), 0o755);
+  const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' };
+  delete env.GHQCD_SEMANTIC; // the runtime install is the point
+  delete env.FORCE_COLOR;
+  // Its own process group, so the signal reaches it and npm the way Ctrl-C does.
+  const child = spawn(process.execPath, [BIN, '--index'], { env, detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (b) => { stderr += b; });
+  const closed = new Promise((r) => child.on('close', r));
+  try {
+    for (let i = 0; i < 200 && !existsSync(mark); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(existsSync(mark), 'npm ci never started');
+    process.kill(-child.pid, 'SIGINT');
+    await closed;
+    assert.doesNotMatch(stderr, /npm ci failed/);
+    const p = existsSync(join(cache, 'progress.json')) ? JSON.parse(readFileSync(join(cache, 'progress.json'), 'utf8')) : {};
+    assert.notEqual(p.failed, true, 'the next window would say "indexing failed" and not retry for 6 h');
+  } finally {
+    try { process.kill(-child.pid, 'SIGKILL'); } catch { /* gone */ }
+    rmSync(shims, { recursive: true, force: true });
+    rmSync(cache, { recursive: true, force: true });
   }
 });
