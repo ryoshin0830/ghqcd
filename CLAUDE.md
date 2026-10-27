@@ -293,9 +293,11 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   refresh. `needsRefresh` also catches vectors older than the text index.
 - **The status bar shows age or current progress**, never the previous text
   fetch duration. `lib/status.mjs` formats phase-specific ASCII progress bars,
-  counts and vector ETAs. A second footer line always shows Shift+Tab and the
-  current mode. Unknown totals have no invented percentage. Progress callbacks
-  may pass structured `phase`, `completed`, `total`, `remainingSeconds` fields.
+  counts and vector ETAs. A second footer line separates current state
+  (`vectors: OFF (disabled)` / `vectors: ON (enabled)`) from the next action
+  (`shift-tab: enable` / `shift-tab: disable`). Unknown totals have no invented
+  percentage. Progress callbacks may pass structured `phase`, `completed`,
+  `total`, `remainingSeconds` fields.
 - The model is pinned by revision and SHA-256 (`MODEL` in
   `lib/search-index.mjs`). Use the **fp16** export: it matches the reference
   FP32 model exactly, while the int8 export drifted (cosine median 0.835) and

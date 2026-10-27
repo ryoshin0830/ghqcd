@@ -804,7 +804,9 @@ function statusLine(si, semantic) {
   const cols = stderr.columns || 80;
   const width = (cols >= 100 ? Math.floor(cols / 2) : cols) - 4;
   const head = indexStatus(si.readStatus(), running(si) || (p?.done ? p : null));
-  return [head, `shift-tab vectors ${semantic ? 'ON' : 'OFF'} · ctrl-r refresh · enter go · ctrl-o GitHub`]
+  const state = semantic ? 'ON (enabled)' : 'OFF (disabled)';
+  const action = semantic ? 'disable' : 'enable';
+  return [head, `vectors: ${state} · shift-tab: ${action} · ctrl-r refresh · enter go · ctrl-o GitHub`]
     .map((line) => fit(line, width)).join('\n');
 }
 

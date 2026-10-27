@@ -860,7 +860,7 @@ test('the window shows vector mode and binds shift-tab without closing fzf', (t)
   const w = openWindow(t, { prepare: freshIndex });
   if (!w) return;
   try {
-    assert.match(w.args.join('\n'), /shift-tab vectors OFF/);
+    assert.match(w.args.join('\n'), /vectors: OFF \(disabled\) · shift-tab: enable/);
     assert.ok(w.args.some((a) => a.startsWith('--bind=shift-tab:execute-silent(') && a.includes('--serve-toggle-vectors')));
   } finally { closeWindow(w); }
 });

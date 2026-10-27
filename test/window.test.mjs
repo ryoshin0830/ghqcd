@@ -29,7 +29,7 @@ stty rows 30 columns ${columns} < $spawn_out(slave,name)
 proc see {text} {
   expect {
     -exact "\\033\\[6n" { send -- "\\033\\[1;1R"; exp_continue }
-    -re $text { return }
+    -exact $text { return }
     timeout { puts stderr "missing: $text"; exit 91 }
     eof { puts stderr "closed before: $text"; exit 92 }
   }
@@ -80,14 +80,14 @@ test('E2E: real fzf toggles vectors, keeps the query, frees the worker and reuse
   const before = readFileSync(vectorFile);
   try {
     const r = runPty(f, `
-see {vectors OFF}
+see {vectors: OFF (disabled) · shift-tab: enable}
 send -- needle
 after 400
 phase on
 send -- "\\033\\[Z"
 after 700
 send -- "\\014"
-see {vectors ON}
+see {vectors: ON (enabled) · shift-tab: disable}
 waitEvents query 1
 send -- "\\014"
 see {~readme}
@@ -95,14 +95,14 @@ phase off
 send -- "\\033\\[Z"
 after 700
 send -- "\\014"
-see {vectors OFF}
+see {vectors: OFF (disabled) · shift-tab: enable}
 phase off-settled
 after 400
 phase again
 send -- "\\033\\[Z"
 after 700
 send -- "\\014"
-see {vectors ON}
+see {vectors: ON (enabled) · shift-tab: disable}
 waitEvents query 2
 send -- "\\014"
 see {~readme}
@@ -133,7 +133,11 @@ test('E2E: a 60-column window shows phase progress and exits cleanly', (t) => {
     const r = runPty(f, `
 see {25% 210/852}
 see {20 min left}
-see {shift-tab vectors OFF}
+see {vectors: OFF (disabled) · shift-tab: enable}
+send -- "\\033\\[Z"
+see {vectors: ON (enabled) · shift-tab: disable}
+send -- "\\033\\[Z"
+see {vectors: OFF (disabled) · shift-tab: enable}
 send -- "\\033"
 `, 60);
     assert.equal(r.status, 130, r.stdout + r.stderr);
@@ -148,14 +152,14 @@ test('E2E: disabling pauses an owned vector build, keeps its model and lets ctrl
   writeFileSync(join(f.shims, 'npm'), `#!/bin/sh\ntouch '${started}'\nexec sleep 30\n`, { mode: 0o755 });
   try {
     const r = runPty(f, `
-see {vectors OFF}
+see {vectors: OFF (disabled) · shift-tab: enable}
 send -- "\\033\\[Z"
-see {vectors ON}
+see {vectors: ON (enabled) · shift-tab: disable}
 waitFile ${started}
 send -- "\\033\\[Z"
 after 700
 send -- "\\014"
-see {vectors OFF}
+see {vectors: OFF (disabled) · shift-tab: enable}
 waitProgress {progress saved}
 file copy ${join(f.cache, 'progress.json')} ${join(f.base, 'paused.json')}
 send -- "\\022"
@@ -186,10 +190,10 @@ test('E2E: legacy fzf queues vectors when enabled during a text refresh', (t) =>
   writeFileSync(join(f.cache, 'status.json'), JSON.stringify({ textAt: Date.now() - 2 * 864e5 }));
   try {
     const r = runPty(f, `
-see {vectors OFF}
+see {vectors: OFF (disabled) · shift-tab: enable}
 waitFile ${join(f.cache, 'index.lock')}
 send -- "\\033\\[Z"
-see {vectors ON}
+see {vectors: ON (enabled) · shift-tab: disable}
 waitEvents load 1
 waitProgress {"done":true}
 send -- "\\033"
@@ -207,9 +211,9 @@ test('E2E: a killed vector indexer reports failure without a retry loop', (t) =>
   writeFileSync(join(f.shims, 'npm'), `#!/bin/sh\nprintf x >> '${attempts}'\nkill -KILL "$PPID"\nexit 0\n`, { mode: 0o755 });
   try {
     const r = runPty(f, `
-see {vectors OFF}
+see {vectors: OFF (disabled) · shift-tab: enable}
 send -- "\\033\\[Z"
-see {vectors ON}
+see {vectors: ON (enabled) · shift-tab: disable}
 waitFile ${attempts}
 waitProgress {indexer stopped}
 after 1200
