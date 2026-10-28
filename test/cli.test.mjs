@@ -1086,3 +1086,9 @@ for (const shell of ['zsh', 'bash', 'fish']) {
     assert.match(out, /--list[ |]--json[ |]--search/);
   });
 }
+
+test('--help names --search and how each window key is done without the window', () => {
+  const out = run(['--help']).stdout;
+  assert.match(out, /--search/);
+  assert.match(out, /FOR SCRIPTS AND AGENTS/);
+});

@@ -25,7 +25,7 @@
 | --- | --- |
 | type a query | `ghqcd --search --json <q>` |
 | label column, `#issue`/`file:line`, similarity | `match`, `ref`, `similarity` per result |
-| Enter on a not-cloned line | `ghq get https://<slug>`, then `ghqcd --json <slug>` |
+| Enter on a not-cloned line | `ghq get https://<slug> && ghq list -e -p <slug>` |
 | ctrl-o | `url` per result |
 | ctrl-r | `ghqcd --index` |
 | status bar | `index` in the `--search` payload |

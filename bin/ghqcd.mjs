@@ -32,6 +32,8 @@ OPTIONS
   --query <q>        initial query (same as the positional argument)
   --list             print every cloned repository (with a query: the clones
                      --json would pick from, best first)
+  --search           print what the window would show for the query, once,
+                     without fzf or a terminal (see FOR SCRIPTS AND AGENTS)
   --index            refresh the search index now (the window also does it
                      by itself, in the background, once a day)
   --json             stdout = 1-line JSON, never opens the fzf UI
@@ -45,6 +47,7 @@ EXAMPLES
   ${PKG} alchemy                lands at once on a unique match, else searches
   ${PKG} --list                 every repository path, one per line
   ${PKG} --json alchemy         machine-readable best match
+  ${PKG} --search --json stalls  every match, and why it matched
   ${PKG} --quiet alchemy        path only — \`cd "$(${PKG} --quiet alchemy)"\`
   ${PKG} "把长网址缩短"           Shift+Tab also searches by meaning, any language
 
@@ -65,6 +68,17 @@ THE SEARCH WINDOW
   GHQCD_SEMANTIC=1 opts in at launch or when running --index.
   Code queries for repositories that are not cloned go to GitHub's code search.
 
+FOR SCRIPTS AND AGENTS
+  Everything the window does, without it:
+    type a query             ${PKG} --search --json <q>
+    the label column         "match", "ref" (#issue or file:line), "similarity"
+    Enter on a clone         ${PKG} --json <q>  (path)
+    Enter, not cloned        ghq get https://<slug> && ghq list -e -p <slug>
+    ctrl-o                   "url"
+    ctrl-r                   ${PKG} --index
+    the status bar           "index" in the --search payload
+    Shift+Tab                GHQCD_SEMANTIC=1 ${PKG} --search --json <q>
+
 WHY --init
   A child process cannot change its parent shell's directory, so \`npx ${PKG}\`
   alone can only *print* where to go. \`--init\` emits a shell function that
@@ -82,6 +96,13 @@ OUTPUT
     {"schemaVersion":1,"path":"…","slug":"…","root":"…","matches":1}
   with --list:
     {"schemaVersion":1,"count":2,"root":"…","repos":[{"path":"…","slug":"…"}]}
+
+  --search --json prints 1 line of JSON to stdout, results best first:
+    {"schemaVersion":1,"query":"…","count":1,"root":"…","semantic":false,
+     "index":{"updatedAt":"…","vectorsAt":null,"running":null},
+     "results":[{"slug":"…","path":"…"|null,"cloned":true,"match":"issue",
+                 "ref":"#7","snippet":"…","description":"…","url":"…"}]}
+  without --json, one line per result: match, slug, path, ref, snippet (tabs).
 
   On error in --json mode, stdout is empty and stderr gets:
     {"schemaVersion":1,"error":{"code":"E_NO_MATCH","message":"…"},"exitCode":2}
