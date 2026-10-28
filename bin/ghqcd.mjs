@@ -962,7 +962,7 @@ async function searchWindow(si, repos, slugOf) {
     // A legend for the label column, and what is still on its way.
     write(`\t||\t${dim(`“${q}” · ${Object.keys(LABELS).join(' ')} code: the words typed${semantic ? ' · ~: by meaning, follows' : ''}`)}`);
     return streamResults({
-      query: q, docs, write, signal, display: (h) => display(h, terms),
+      query: q, docs, signal, emit: (h) => write(`${h.key}\t${display(h, terms)}`),
       code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
       meaning,
     });
