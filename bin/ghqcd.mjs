@@ -123,6 +123,7 @@ try {
       cmd: { type: 'string' },
       query: { type: 'string' },
       list: { type: 'boolean' },
+      search: { type: 'boolean' },
       index: { type: 'boolean' },
       // fzf's reload and preview commands: clients of the window's query server.
       'serve-query': { type: 'string' },
@@ -270,7 +271,7 @@ ${fnName}() {
   local __a
   for __a in "$@"; do
     case $__a in
-      -h|--help|-V|--version|--init|--init=*|--list|--json)
+      -h|--help|-V|--version|--init|--init=*|--list|--json|--search)
         __${slug}_exec "$@"
         return $?
         ;;
@@ -310,7 +311,7 @@ ${fnName}() {
   local __a
   for __a in "$@"; do
     case "$__a" in
-      -h|--help|-V|--version|--init|--init=*|--list|--json)
+      -h|--help|-V|--version|--init|--init=*|--list|--json|--search)
         __${slug}_exec "$@"
         return $?
         ;;
@@ -346,7 +347,7 @@ function ${fnName} --description ${fishq(desc)}
     # collide with the --quiet added below.
     for __a in $argv
         switch $__a
-            case -h --help -V --version --init '--init=*' --list --json
+            case -h --help -V --version --init '--init=*' --list --json --search
                 __${slug}_exec $argv
                 return $status
         end
@@ -400,6 +401,9 @@ if (values.query != null && positionals.length > 0 && values.query !== positiona
 
 const query = values.query ?? positionals[0] ?? '';
 
+if (values.search && (values.list || values.index || values.quiet)) {
+  die('E_VALIDATION', '--search takes a query and only combines with --json');
+}
 if (values.index && (query || values.list)) {
   die('E_VALIDATION', '--index takes no query and only combines with --json');
 }
@@ -837,8 +841,8 @@ function display(hit, terms) {
 }
 
 // No query yet: everything, clones first, then the most recently pushed.
-const browse = (docs) => [...docs]
-  .sort((a, b) => b.cloned - a.cloned || (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''))
+const byRecent = (docs) => [...docs].sort((a, b) => b.cloned - a.cloned || (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''));
+const browse = (docs) => byRecent(docs)
   .map((d) => `${d.key}\t||\t${' '.repeat(LABEL_WIDTH)} ${d.slug}${d.cloned ? '' : dim(' · not cloned')}  ${dim(flat(d.description))}`);
 
 // The right pane: what matched and how, then the matched lines in place.
@@ -1067,6 +1071,50 @@ async function searchWindow(si, repos, slugOf) {
   }
 }
 
+// --search: the window's answer to one query, run once and printed — what an
+// agent uses instead of the window. Same hits in the same order; each says what
+// matched (`match`, `ref`), and `index` is what the window's bar shows.
+async function searchOnce(si, repos, slugOf, root) {
+  const docs = si.readDocs(repos, slugOf);
+  const status = si.readStatus();
+  let semantic = SEMANTIC;
+  const skipMeaning = (why) => { semantic = false; say(`${PKG}: meaning search did not run: ${why}`); };
+  if (semantic && !status.semanticAt) skipMeaning(`no vectors yet. \`GHQCD_SEMANTIC=1 ${PKG} --index\` builds them`);
+  const hits = [];
+  if (query) {
+    const { streamResults } = await import('../lib/serve.mjs');
+    const { codeSearch } = await import('../lib/code.mjs');
+    const tokens = new Map();
+    const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
+    const find = semantic && si.meaningSearch();
+    await streamResults({
+      query, docs, signal: new AbortController().signal, emit: (h) => hits.push(h),
+      meaning: async (q) => (find ? find(q).catch((err) => { skipMeaning(err.message); return []; }) : []),
+      code: (q, signal) => codeSearch({ docs, query: q, signal, token, pause: 0 }),
+    });
+  } else hits.push(...byRecent(docs));
+  if (!hits.length) die('E_NO_MATCH', `no repository matched '${query}'`);
+  const results = hits.map((h) => {
+    const ref = h.loc ?? (h.number ? `#${h.number}` : null);
+    return {
+      slug: h.slug, path: h.cloned ? h.key : null, cloned: !!h.cloned,
+      match: query ? matchLabel(h) : null, ref,
+      ...(h.via === 'meaning' && { similarity: Number(h.score.toFixed(3)) }),
+      snippet: flat(h.snippet ?? h.description), description: flat(h.description), url: urlOf(h, `|${ref ?? ''}`),
+    };
+  });
+  const iso = (at) => (at ? new Date(at).toISOString() : null);
+  if (!isJson) {
+    process.stdout.write(results.map((r) => [r.match ?? '', r.slug, r.path ?? '', r.ref ?? '', r.snippet].join('\t')).join('\n') + '\n');
+    return;
+  }
+  process.stdout.write(JSON.stringify({
+    schemaVersion: SCHEMA_VERSION, query, count: results.length, root, semantic,
+    index: { updatedAt: iso(status.textAt), vectorsAt: iso(status.semanticAt), running: running(si)?.text ?? null },
+    results,
+  }) + '\n');
+}
+
 // The window's meaning search: on a worker thread, 250 ms after typing stops,
 // and only for the query still on screen.
 function meaningWorker() {
@@ -1100,7 +1148,7 @@ function meaningWorker() {
 async function main() {
   await ensureTool('git');
   await ensureTool('ghq');
-  if (!values.index) await ensureTool('fzf');
+  if (!values.index && !values.search) await ensureTool('fzf');
 
   const roots = ghqRoots();
   const root = roots[roots.length - 1] ?? ''; // the primary, for the `root` field
@@ -1113,13 +1161,14 @@ async function main() {
   // With no clone, --index and the window still reach GitHub: a new machine
   // finds its repositories there and clones one with Enter.
   if (values.index) return runIndex(repos, slugOf);
-  if (repos.length === 0 && (values.list || isNonInteractive)) {
+  if (repos.length === 0 && !values.search && (values.list || isNonInteractive)) {
     die('E_NO_MATCH', 'ghq has no repositories. Clone one with `ghq get <url>` first.');
   }
 
   const si = await searchIndex();
   const rank = await import('../lib/rank.mjs');
   ({ matchLabel, matchContext, LABELS, flat } = rank);
+  if (values.search) return searchOnce(si, repos, slugOf, root);
   const docs = query ? si.readDocs(repos, slugOf) : [];
   // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
   // way fzf did before the index existed, so those queries still land. A

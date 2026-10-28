@@ -101,3 +101,11 @@ test('a file with a Japanese name is shown by its name, not by octal escapes', a
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a one-shot search (pause 0) asks GitHub at once, without the window\'s typing pause', async () => {
+  const t0 = Date.now();
+  let asked;
+  const docs = [{ key: 'github.com/a/far', slug: 'github.com/a/far', cloned: false }];
+  await collect(codeSearch({ docs, query: 'hello', pause: 0, signal: new AbortController().signal, token: () => { asked = Date.now() - t0; return null; } }));
+  assert.ok(asked < 300, `asked after ${asked} ms`);
+});

@@ -63,7 +63,9 @@ function run(args, { shims, env = {} } = {}) {
   const dir = shims ?? makeShims();
   const cache = env.GHQCD_CACHE_DIR ? null : tempCache();
   const childEnv = {
-    ...process.env, PATH: `${dir}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache, ...env,
+    ...process.env, PATH: `${dir}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache,
+    // --search sends code queries to GitHub: the developer's own token must not reach it.
+    GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', ...env,
   };
   // We force NO_COLOR; node itself warns to stderr when FORCE_COLOR is also
   // set, so a developer who exports it would otherwise see phantom failures.
@@ -959,3 +961,128 @@ test('Ctrl-C during the first --index is a cancel, not a failure the window then
     rmSync(cache, { recursive: true, force: true });
   }
 });
+
+// ── --search: the window's results, for scripts and agents ─────────────────
+
+function searchCache() {
+  const cache = tempCache();
+  const repos = {
+    [REPOS[0]]: { slug: 'github.com/alice/apple', name: 'apple', cloned: true, description: 'red fruit', readme: '', issues: [{ number: 7, title: 'upload stalls on big files', body: '' }] },
+    'github.com/alice/durian': { slug: 'github.com/alice/durian', name: 'durian', cloned: false, description: '', readme: 'durian smells strong', issues: [] },
+  };
+  writeFileSync(join(cache, 'index.json'), JSON.stringify({ repos }));
+  return cache;
+}
+function search(args, env = {}, shims) {
+  const cache = searchCache();
+  const r = run(['--search', ...args], { shims, env: { GHQCD_CACHE_DIR: cache, ...env } });
+  rmSync(cache, { recursive: true, force: true });
+  return r;
+}
+
+test('--search --json says which issue matched, with its URL', () => {
+  const r = search(['--json', 'stalls']);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.schemaVersion, 1);
+  assert.equal(out.query, 'stalls');
+  assert.equal(out.semantic, false);
+  assert.equal(out.index.updatedAt, null);
+  assert.equal(out.count, 1);
+  assert.deepEqual(out.results[0], {
+    slug: 'github.com/alice/apple', path: REPOS[0], cloned: true, match: 'issue', ref: '#7',
+    snippet: '#7 upload stalls on big files', description: 'red fruit', url: 'https://github.com/alice/apple/issues/7',
+  });
+});
+
+test('--search --json returns repositories that are not cloned, with path null', () => {
+  const out = JSON.parse(search(['--json', 'smells']).stdout);
+  assert.equal(out.results[0].slug, 'github.com/alice/durian');
+  assert.equal(out.results[0].cloned, false);
+  assert.equal(out.results[0].path, null);
+  assert.equal(out.results[0].match, 'readme');
+  assert.equal(out.results[0].url, 'https://github.com/alice/durian');
+});
+
+test('--search finds code in a clone, with file:line and a link to the line', () => {
+  const repo = `${ROOT}/github.com/alice/codey`;
+  rmSync(repo, { recursive: true, force: true });
+  spawnSync('git', ['init', '-q', repo]);
+  writeFileSync(join(repo, 'main.js'), 'const a = 1;\nfunction frobnicateWidget() {}\n');
+  spawnSync('git', ['-C', repo, 'add', '.']);
+  const shims = makeShims({ repos: [repo] });
+  const r = search(['--json', 'frobnicateWidget'], {}, shims);
+  rmSync(shims, { recursive: true, force: true });
+  rmSync(repo, { recursive: true, force: true });
+  assert.equal(r.status, 0, r.stderr);
+  const [hit] = JSON.parse(r.stdout).results;
+  assert.equal(hit.match, 'code');
+  assert.equal(hit.ref, 'main.js:2');
+  assert.equal(hit.url, 'https://github.com/alice/codey/blob/HEAD/main.js#L2');
+});
+
+test('--search without --json prints one tab-separated line per result', () => {
+  const r = search(['stalls']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, `issue\tgithub.com/alice/apple\t${REPOS[0]}\t#7\t#7 upload stalls on big files\n`);
+});
+
+test('--search with no query lists every repository, clones and not', () => {
+  const out = JSON.parse(search(['--json']).stdout);
+  assert.equal(out.count, REPOS.length + 1);
+  assert.ok(out.results.every((h) => h.match === null));
+});
+
+test('--search with no match exits 2 and leaves stdout empty', () => {
+  const r = search(['--json', 'zzzzqqq']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+  assert.equal(jsonLine(r.stderr).error.code, 'E_NO_MATCH');
+});
+
+test('--search does not combine with --list, --index or --quiet', () => {
+  for (const other of ['--list', '--index', '--quiet']) {
+    const r = search([other, 'x']);
+    assert.equal(r.status, 1, other);
+    assert.match(r.stderr, /--search/);
+  }
+});
+
+test('--search needs no fzf', () => {
+  const shims = makeShims();
+  rmSync(join(shims, 'fzf'));
+  const dir = mkdtempSync(join(tmpdir(), 'ghqcd-nofzf-'));
+  for (const n of ['ghq', 'gh']) writeFileSync(join(dir, n), readFileSync(join(shims, n))), chmodSync(join(dir, n), 0o755);
+  const git = spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim();
+  writeFileSync(join(dir, 'git'), `#!/bin/sh\nexec ${git} "$@"\n`);
+  chmodSync(join(dir, 'git'), 0o755);
+  const cache = searchCache();
+  const r = spawnSync(process.execPath, [BIN, '--search', '--json', 'stalls'], {
+    encoding: 'utf8', env: { HOME: process.env.HOME, PATH: dir, NO_COLOR: '1', GHQCD_CACHE_DIR: cache, GHQCD_SEMANTIC: '0' },
+  });
+  for (const d of [shims, dir, cache]) rmSync(d, { recursive: true, force: true });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).results[0].ref, '#7');
+});
+
+test('--search with GHQCD_SEMANTIC=1 and no model still answers, and says meaning search did not run', () => {
+  const r = search(['--json', 'stalls'], { GHQCD_SEMANTIC: '1' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).semantic, false);
+  assert.match(r.stderr, /meaning search/);
+});
+
+test('--search reports the index state the window shows in its bar', () => {
+  const cache = searchCache();
+  writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.UTC(2026, 0, 2) }));
+  const r = run(['--search', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache } });
+  rmSync(cache, { recursive: true, force: true });
+  assert.deepEqual(JSON.parse(r.stdout).index, { updatedAt: '2026-01-02T00:00:00.000Z', vectorsAt: null, running: null });
+});
+
+for (const shell of ['zsh', 'bash', 'fish']) {
+  test(`the ${shell} function passes --search through uncaptured`, () => {
+    const out = run(['--init', shell]).stdout;
+    assert.match(out, /--list[ |]--json[ |]--search/);
+  });
+}
