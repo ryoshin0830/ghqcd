@@ -18,7 +18,8 @@ A small Node.js CLI (zero runtime dependencies) that:
    you can reach (cloned or on GitHub, see I12), or non-interactively among
    clones (`--json`, `--quiet` without a TTY).
 3. Prints the chosen path: as a `cd "…"` box (default), one bare line
-   (`--quiet`), or one line of JSON (`--json`).
+   (`--quiet`), or one line of JSON (`--json`). `--search` prints the window's
+   whole answer instead, for agents (I7).
 4. Emits a shell function on `--init <shell>` so the *shell* performs the `cd`.
 
 Single source of behavior: `bin/ghqcd.mjs`. The search lives in `lib/`:
@@ -34,7 +35,7 @@ Sibling packages built to the same contract: `gwqcd`, `gwqpull`, `ghnew`.
 ### I1. stdout / stderr discipline
 
 - **stdout** is for machine-readable output **only**: the `--quiet` path, the
-  `--json` payload, the `--list` lines, the `--init` shell snippet, and the
+  `--json` payload, the `--list` and `--search` lines, the `--init` shell snippet, and the
   `--help`/`--version` body.
 - **stderr** is for everything else: the `cd` box, the keypress prompt, ANSI
   cursor restore, every error message.
@@ -127,6 +128,27 @@ Listing (`--list --json`):
 }
 ```
 
+Search (`--search --json [<q>]`) — the window's answer, run once, best first:
+
+```json
+{
+  "schemaVersion": 1,
+  "query":         "<q>",
+  "count":         <number>,
+  "root":          "<ghq root>",
+  "semantic":      <whether meaning search ran>,
+  "index":         { "updatedAt": "<ISO>|null", "vectorsAt": "<ISO>|null", "running": "<progress>|null" },
+  "results":       [{ "slug": "…", "path": "<clone>|null", "cloned": true, "match": "<label>",
+                      "ref": "#<issue>|<file>:<line>|null", "similarity": <meaning only>,
+                      "snippet": "…", "description": "…", "url": "…" }]
+}
+```
+
+`--search` is how an agent does what the window does: every window action has a
+command (the table in `--help`, README and SKILL.md). A window feature that
+`--search` cannot reach is a bug in `--search`. It shares `streamResults` with
+the window, so the two cannot drift; it needs no fzf, and it starts no index run.
+
 Error (stderr, exit ≠ 0):
 
 ```json
@@ -160,7 +182,7 @@ select the line starting with `{`, never parse the whole stream.
 ### I8b. The function must not capture output that is not a path
 
 Every flag whose result goes to stdout has to be passed through uncaptured:
-`-h`, `--help`, `-V`, `--version`, `--init`, `--list`, `--json`. The wrapper adds
+`-h`, `--help`, `-V`, `--version`, `--init`, `--list`, `--json`, `--search`. The wrapper adds
 `--quiet`, so `--json` would additionally collide with it and error out.
 
 This shipped broken in every one of these packages and was only found by running
@@ -286,7 +308,8 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   directory is 0700 and every file 0600, written atomically. Never log issue
   text. Code queries for repositories that are not cloned go to GitHub's code
   search, scoped to the user, after 0.7 s of no typing, at most 10 a minute per
-  host; that is the only query text that leaves the machine.
+  host, counted across processes in `code-search.json` (an agent's `--search`
+  loop shares the window's budget); that is the only query text that leaves the machine.
 - **Vector search is off by default** (the user's decision). Shift+Tab toggles
   it in the current window; `GHQCD_SEMANTIC=1` explicitly opts in at launch or
   for `--index`. Disabled mode creates no search worker or vector indexing.

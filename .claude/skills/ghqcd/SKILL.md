@@ -2,9 +2,10 @@
 name: ghqcd
 description: >
   Resolve the absolute local path of an already-cloned ghq repository by fuzzy
-  query, or list every cloned repository. Use this skill when you need to locate
-  or move into a repo that is already on disk — not for cloning new ones,
-  creating repos, or working with git worktrees.
+  query, list every cloned repository, or search every repository the user can
+  reach (cloned or on GitHub / GHE) by name, description, README, issues,
+  meaning and code, with why each matched. Not for creating repos or for git
+  worktrees.
 when_to_use: |
   Use when the user says one of (or equivalent intent):
     - "go to the api repo / api リポジトリに移動して"
@@ -12,13 +13,15 @@ when_to_use: |
     - "cd into my <name> project"
     - "list my local repos / clone してるリポ一覧"
     - "open <repo> and run the tests"
+    - "which of my repos handles X? / X をやってるリポどれ？"
+    - "find the repo with the issue about Y / Y の issue があるリポ"
 
   Do NOT use this skill when the user wants any of:
     - cloning a repository that is not on disk yet (use `ghq get`, or `gwqpull`
       when a worktree is wanted)
     - creating a brand-new remote repo (use `ghnew`)
     - a git worktree rather than the main clone (use `gwqcd`)
-    - searching code inside repositories (use grep/rg)
+    - searching code inside one repository you already know (use grep/rg)
 allowed-tools: Bash
 ---
 
@@ -65,9 +68,7 @@ ghqcd --json "upload stalls"
 ```
 
 The payload adds `"issue": <number>` when an issue matched rather than the
-name. Meaning search (any language) and code search exist only in the
-interactive window, not in `--json`. Vector search is off by default; the user
-can enable it with Shift+Tab in the window.
+name.
 
 `--json` only ever returns a clone, so `path` always exists. When the best match
 is a repository that is not cloned, it exits 2 (`E_NO_MATCH`) and the message
@@ -75,6 +76,52 @@ names the `ghq get https://…` command: offer to run it. It never starts an ind
 run; do not run `ghqcd --index` yourself unasked — it reads private repositories
 and issues through the GitHub API. With `GHQCD_SEMANTIC=1`, the first vector
 index also downloads a 1.2 GB model; normal text indexing does not.
+
+## Searching: `--search --json`
+
+When the user describes a repository instead of naming it, or wants to see
+every candidate and why, use `--search`. It prints exactly what the window
+would show, in the same order — clones and repositories that are not cloned,
+by name, path, description, README, issues, then meaning and code:
+
+```bash
+ghqcd --search --json "upload stalls"
+```
+
+```json
+{"schemaVersion":1,"query":"upload stalls","count":2,"root":"…","semantic":false,
+ "index":{"updatedAt":"2026-10-28T01:00:00.000Z","vectorsAt":null,"running":null},
+ "results":[{"slug":"github.com/alice/api","path":"/…/api","cloned":true,"match":"issue","ref":"#7",
+             "snippet":"#7 upload stalls on big files","description":"…","url":"https://github.com/alice/api/issues/7"}]}
+```
+
+- `match` says what matched: `name`, `name*` (letters in order), `path`,
+  `desc`, `readme`, `issue`, `~readme` / `~issue` (by meaning), `code`.
+  Quote it to the user as the reason.
+- `ref` is `#<issue>` or `<file>:<line>`; `url` opens exactly that on GitHub.
+- `path` is `null` when `cloned` is false. To go there:
+  `ghq get https://<slug> && ghq list -e -p <slug>` — ask first, it clones.
+- Meaning search runs only with `GHQCD_SEMANTIC=1` and vectors built; check
+  `semantic` in the payload. It loads a 1.2 GB model (seconds, ~4 GB memory).
+- Code queries for repositories that are not cloned go to GitHub's code
+  search, at most 10 a minute per host across every ghqcd run (the window's
+  included); past that, GitHub code hits are simply missing for the rest of
+  the minute. Clones are searched with `git grep` locally.
+- `index.updatedAt: null` means no index yet: only clones, by name, path and code.
+  Suggest `ghqcd --index` to the user rather than running it unasked.
+
+Every window action has a command:
+
+| In the window | Without it |
+| --- | --- |
+| type a query | `ghqcd --search --json <q>` |
+| the label column | `match`, `ref`, `similarity` |
+| Enter on a clone | the result's `path` |
+| Enter, not cloned | `ghq get https://<slug> && ghq list -e -p <slug>` |
+| ctrl-o | `url` |
+| ctrl-r | `ghqcd --index` (ask first) |
+| the status bar | `index` |
+| Shift+Tab | `GHQCD_SEMANTIC=1` |
 
 To enumerate instead of picking:
 
@@ -142,7 +189,8 @@ diagnostics share the stream, so select the line starting with `{` —
 whole stream to `jq`.
 
 On `E_NO_MATCH`, the repository is not cloned. Say so and offer `ghq get <url>`
-(or `gwqpull`); do NOT retry with a mutated query.
+(or `gwqpull`); do NOT retry with a mutated query. `ghqcd --search --json <q>`
+shows what did match, not cloned ones included.
 
 ## Things the skill must NOT do
 

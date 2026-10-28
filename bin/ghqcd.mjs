@@ -32,6 +32,8 @@ OPTIONS
   --query <q>        initial query (same as the positional argument)
   --list             print every cloned repository (with a query: the clones
                      --json would pick from, best first)
+  --search           print what the window would show for the query, once,
+                     without fzf or a terminal (see FOR SCRIPTS AND AGENTS)
   --index            refresh the search index now (the window also does it
                      by itself, in the background, once a day)
   --json             stdout = 1-line JSON, never opens the fzf UI
@@ -45,6 +47,7 @@ EXAMPLES
   ${PKG} alchemy                lands at once on a unique match, else searches
   ${PKG} --list                 every repository path, one per line
   ${PKG} --json alchemy         machine-readable best match
+  ${PKG} --search --json stalls  every match, and why it matched
   ${PKG} --quiet alchemy        path only — \`cd "$(${PKG} --quiet alchemy)"\`
   ${PKG} "把长网址缩短"           Shift+Tab also searches by meaning, any language
 
@@ -65,6 +68,17 @@ THE SEARCH WINDOW
   GHQCD_SEMANTIC=1 opts in at launch or when running --index.
   Code queries for repositories that are not cloned go to GitHub's code search.
 
+FOR SCRIPTS AND AGENTS
+  Everything the window does, without it:
+    type a query             ${PKG} --search --json <q>
+    the label column         "match", "ref" (#issue or file:line), "similarity"
+    Enter on a clone         the result's "path"
+    Enter, not cloned        ghq get https://<slug> && ghq list -e -p <slug>
+    ctrl-o                   "url"
+    ctrl-r                   ${PKG} --index
+    the status bar           "index" in the --search payload
+    Shift+Tab                GHQCD_SEMANTIC=1 ${PKG} --search --json <q>
+
 WHY --init
   A child process cannot change its parent shell's directory, so \`npx ${PKG}\`
   alone can only *print* where to go. \`--init\` emits a shell function that
@@ -82,6 +96,13 @@ OUTPUT
     {"schemaVersion":1,"path":"…","slug":"…","root":"…","matches":1}
   with --list:
     {"schemaVersion":1,"count":2,"root":"…","repos":[{"path":"…","slug":"…"}]}
+
+  --search --json prints 1 line of JSON to stdout, results best first:
+    {"schemaVersion":1,"query":"…","count":1,"root":"…","semantic":false,
+     "index":{"updatedAt":"…","vectorsAt":null,"running":null},
+     "results":[{"slug":"…","path":"…"|null,"cloned":true,"match":"issue",
+                 "ref":"#7","snippet":"…","description":"…","url":"…"}]}
+  without --json, one line per result: match, slug, path, ref, snippet (tabs).
 
   On error in --json mode, stdout is empty and stderr gets:
     {"schemaVersion":1,"error":{"code":"E_NO_MATCH","message":"…"},"exitCode":2}
@@ -123,6 +144,7 @@ try {
       cmd: { type: 'string' },
       query: { type: 'string' },
       list: { type: 'boolean' },
+      search: { type: 'boolean' },
       index: { type: 'boolean' },
       // fzf's reload and preview commands: clients of the window's query server.
       'serve-query': { type: 'string' },
@@ -270,7 +292,7 @@ ${fnName}() {
   local __a
   for __a in "$@"; do
     case $__a in
-      -h|--help|-V|--version|--init|--init=*|--list|--json)
+      -h|--help|-V|--version|--init|--init=*|--list|--json|--search)
         __${slug}_exec "$@"
         return $?
         ;;
@@ -310,7 +332,7 @@ ${fnName}() {
   local __a
   for __a in "$@"; do
     case "$__a" in
-      -h|--help|-V|--version|--init|--init=*|--list|--json)
+      -h|--help|-V|--version|--init|--init=*|--list|--json|--search)
         __${slug}_exec "$@"
         return $?
         ;;
@@ -346,7 +368,7 @@ function ${fnName} --description ${fishq(desc)}
     # collide with the --quiet added below.
     for __a in $argv
         switch $__a
-            case -h --help -V --version --init '--init=*' --list --json
+            case -h --help -V --version --init '--init=*' --list --json --search
                 __${slug}_exec $argv
                 return $status
         end
@@ -400,6 +422,9 @@ if (values.query != null && positionals.length > 0 && values.query !== positiona
 
 const query = values.query ?? positionals[0] ?? '';
 
+if (values.search && (values.list || values.index || values.quiet)) {
+  die('E_VALIDATION', '--search takes a query and only combines with --json');
+}
 if (values.index && (query || values.list)) {
   die('E_VALIDATION', '--index takes no query and only combines with --json');
 }
@@ -788,6 +813,9 @@ function startIndexer(si, semantic) {
   si.writeProgress({ pid: child.pid, since: Date.now(), text: 'starting' });
   return child;
 }
+// One token lookup (maybe a `gh auth token`) per host and run.
+const tokens = new Map();
+const tokenOf = (si) => (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
 const running = (si) => {
   const p = si.readProgress();
   const pid = si.indexPid();
@@ -837,8 +865,8 @@ function display(hit, terms) {
 }
 
 // No query yet: everything, clones first, then the most recently pushed.
-const browse = (docs) => [...docs]
-  .sort((a, b) => b.cloned - a.cloned || (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''))
+const byRecent = (docs) => [...docs].sort((a, b) => b.cloned - a.cloned || (b.pushedAt ?? '').localeCompare(a.pushedAt ?? ''));
+const browse = (docs) => byRecent(docs)
   .map((d) => `${d.key}\t||\t${' '.repeat(LABEL_WIDTH)} ${d.slug}${d.cloned ? '' : dim(' · not cloned')}  ${dim(flat(d.description))}`);
 
 // The right pane: what matched and how, then the matched lines in place.
@@ -948,8 +976,7 @@ async function searchWindow(si, repos, slugOf) {
     } else if (stale(si, semantic)) startRefresh();
   };
   const { codeSearch } = await import('../lib/code.mjs');
-  const tokens = new Map();
-  const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
+  const token = tokenOf(si);
   // Every answer starts with one header line (fzf --header-lines=1): fzf keeps
   // the old list until a line arrives, so a query with no name hits used to
   // leave the previous results up for seconds while meaning and code ran.
@@ -962,7 +989,7 @@ async function searchWindow(si, repos, slugOf) {
     // A legend for the label column, and what is still on its way.
     write(`\t||\t${dim(`“${q}” · ${Object.keys(LABELS).join(' ')} code: the words typed${semantic ? ' · ~: by meaning, follows' : ''}`)}`);
     return streamResults({
-      query: q, docs, write, signal, display: (h) => display(h, terms),
+      query: q, docs, signal, emit: (h) => write(`${h.key}\t${display(h, terms)}`),
       code: (qq, sig) => codeSearch({ docs, query: qq, signal: sig, token }),
       meaning,
     });
@@ -1067,6 +1094,50 @@ async function searchWindow(si, repos, slugOf) {
   }
 }
 
+// --search: the window's answer to one query, run once and printed — what an
+// agent uses instead of the window. Same hits in the same order; each says what
+// matched (`match`, `ref`), and `index` is what the window's bar shows.
+async function searchOnce(si, repos, slugOf, root) {
+  const docs = si.readDocs(repos, slugOf);
+  const status = si.readStatus();
+  // `semantic` says whether meaning search ran: opted in, a query, vectors there.
+  let semantic = SEMANTIC && !!query;
+  const skipMeaning = (why) => { semantic = false; say(`${PKG}: meaning search did not run: ${why}`); };
+  if (semantic && !si.hasVectors()) skipMeaning(`no vectors yet. \`GHQCD_SEMANTIC=1 ${PKG} --index\` builds them`);
+  const hits = [];
+  if (query) {
+    const { streamResults } = await import('../lib/serve.mjs');
+    const { codeSearch } = await import('../lib/code.mjs');
+    const token = tokenOf(si);
+    const find = semantic && si.meaningSearch();
+    await streamResults({
+      query, docs, signal: new AbortController().signal, emit: (h) => hits.push(h),
+      meaning: async (q) => (find ? find(q).catch((err) => { skipMeaning(err.message); return []; }) : []),
+      code: (q, signal) => codeSearch({ docs, query: q, signal, token, pause: 0 }),
+    });
+  } else hits.push(...byRecent(docs));
+  if (!hits.length) die('E_NO_MATCH', `no repository matched '${query}'`);
+  const results = hits.map((h) => {
+    const ref = h.loc ?? (h.number ? `#${h.number}` : null);
+    return {
+      slug: h.slug, path: h.cloned ? h.key : null, cloned: !!h.cloned,
+      match: query ? matchLabel(h) : null, ref,
+      ...(h.via === 'meaning' && { similarity: Number(h.score.toFixed(3)) }),
+      snippet: flat(h.snippet ?? h.description), description: flat(h.description), url: urlOf(h, `|${ref ?? ''}`),
+    };
+  });
+  const iso = (at) => (at ? new Date(at).toISOString() : null);
+  if (!isJson) {
+    process.stdout.write(results.map((r) => [r.match ?? '', r.slug, r.path ?? '', r.ref ?? '', r.snippet].join('\t')).join('\n') + '\n');
+    return;
+  }
+  process.stdout.write(JSON.stringify({
+    schemaVersion: SCHEMA_VERSION, query, count: results.length, root, semantic,
+    index: { updatedAt: iso(status.textAt), vectorsAt: iso(status.semanticAt), running: running(si)?.text ?? null },
+    results,
+  }) + '\n');
+}
+
 // The window's meaning search: on a worker thread, 250 ms after typing stops,
 // and only for the query still on screen.
 function meaningWorker() {
@@ -1100,7 +1171,7 @@ function meaningWorker() {
 async function main() {
   await ensureTool('git');
   await ensureTool('ghq');
-  if (!values.index) await ensureTool('fzf');
+  if (!values.index && !values.search) await ensureTool('fzf');
 
   const roots = ghqRoots();
   const root = roots[roots.length - 1] ?? ''; // the primary, for the `root` field
@@ -1113,13 +1184,14 @@ async function main() {
   // With no clone, --index and the window still reach GitHub: a new machine
   // finds its repositories there and clones one with Enter.
   if (values.index) return runIndex(repos, slugOf);
-  if (repos.length === 0 && (values.list || isNonInteractive)) {
+  if (repos.length === 0 && !values.search && (values.list || isNonInteractive)) {
     die('E_NO_MATCH', 'ghq has no repositories. Clone one with `ghq get <url>` first.');
   }
 
   const si = await searchIndex();
   const rank = await import('../lib/rank.mjs');
   ({ matchLabel, matchContext, LABELS, flat } = rank);
+  if (values.search) return searchOnce(si, repos, slugOf, root);
   const docs = query ? si.readDocs(repos, slugOf) : [];
   // No word matched anywhere (`alweb`, `ali/web`): match the clone paths the
   // way fzf did before the index existed, so those queries still land. A

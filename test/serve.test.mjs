@@ -19,8 +19,8 @@ test('keyword hits come first, then meaning hits not already shown, then code', 
   const lines = [];
   const far = { key: 'github.com/a/far', slug: 'github.com/a/far', name: 'far', cloned: false };
   await streamResults({
-    query: 'apple', docs: [...docs, far], write: (l) => lines.push(l), signal: new AbortController().signal,
-    display: (h) => `${h.slug} ${h.via ?? h.field}`,
+    query: 'apple', docs: [...docs, far], signal: new AbortController().signal,
+    emit: (h) => lines.push(`${h.key}\t${h.slug} ${h.via ?? h.field}`),
     meaning: async () => { await sleep(30); return [{ key: '/r/pie', score: 0.6 }, { key: 'github.com/a/far', score: 0.5 }]; },
     code: async function* () { await sleep(30); yield { key: '/r/apple', slug: 'github.com/a/apple', snippet: 'a.js:1 apple()' }; },
   });
@@ -73,9 +73,9 @@ test('a full answer reaches the client line by line', async () => {
 test('a meaning hit embedded under a repository\'s old key shows under its current key; unknown keys are dropped', async () => {
   const lines = [];
   await streamResults({
-    query: 'zzz', write: (l) => lines.push(l), signal: new AbortController().signal,
+    query: 'zzz', signal: new AbortController().signal,
     docs: [{ key: '/r/lj', alias: 'github.com/a/lj', slug: 'github.com/a/lj', name: 'lj', cloned: true }],
-    display: (h) => `${h.slug} ${h.via}`,
+    emit: (h) => lines.push(`${h.key}\t${h.slug} ${h.via}`),
     meaning: async () => [{ key: 'github.com/a/lj', score: 0.6 }, { key: 'github.com/a/gone', score: 0.5 }],
     code: async function* () {},
   });

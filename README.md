@@ -249,6 +249,35 @@ $ ghqcd --list --json
 candidate was returned but the query was ambiguous. `ghqcd --list --json <query>`
 lists exactly those candidates, best first.
 
+`--search` is the window without the window: the same results in the same
+order, for the clones and the repositories that are not cloned, each saying
+what matched. It needs no fzf and no terminal.
+
+```console
+$ ghqcd --search --json "upload stalls"
+{"schemaVersion":1,"query":"upload stalls","count":1,"root":"/Users/you/ghq","semantic":false,
+ "index":{"updatedAt":"2026-10-28T01:00:00.000Z","vectorsAt":null,"running":null},
+ "results":[{"slug":"github.com/you/api","path":"/Users/you/ghq/github.com/you/api","cloned":true,
+             "match":"issue","ref":"#7","snippet":"#7 upload stalls on big files","description":"…",
+             "url":"https://github.com/you/api/issues/7"}]}
+```
+
+(One line on stdout; wrapped here.) `match` is the window's label column
+(`name`, `desc`, `readme`, `issue`, `~readme`, `code`, …), `ref` is the issue or
+`file:line`, `similarity` comes with meaning hits, and `path` is `null` for a
+repository that is not cloned. Without `--json` it prints one tab-separated line
+per result: match, slug, path, ref, snippet.
+
+| In the window | Without it |
+| --- | --- |
+| type a query | `ghqcd --search --json <q>` |
+| Enter on a clone | the result's `path` |
+| Enter, not cloned | `ghq get https://<slug> && ghq list -e -p <slug>` |
+| ctrl-o | the result's `url` |
+| ctrl-r | `ghqcd --index` |
+| the status bar | `index` in the `--search` payload |
+| Shift+Tab | `GHQCD_SEMANTIC=1 ghqcd --search --json <q>` |
+
 Errors go to stderr as JSON, and stdout stays empty:
 
 ```console

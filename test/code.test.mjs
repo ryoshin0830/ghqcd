@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { codeSearch } from '../lib/code.mjs';
@@ -99,5 +99,36 @@ test('a file with a Japanese name is shown by its name, not by octal escapes', a
     assert.deepEqual(hits.map((h) => h.loc), ['設計.md:1']);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a one-shot search (pause 0) asks GitHub at once, without the window\'s typing pause', async () => {
+  const t0 = Date.now();
+  let asked;
+  const docs = [{ key: 'github.com/a/far', slug: 'github.com/a/far', cloned: false }];
+  await collect(codeSearch({ docs, query: 'hello', pause: 0, signal: new AbortController().signal, token: () => { asked = Date.now() - t0; return null; } }));
+  assert.ok(asked < 300, `asked after ${asked} ms`);
+});
+
+// Every process (each window, each --search an agent runs) shares GitHub's 10 a
+// minute, so the budget is kept in the cache, not in memory.
+test('GitHub code search keeps to 10 a minute per host across processes', async () => {
+  const cache = mkdtempSync(join(tmpdir(), 'ghqcd-budget-'));
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ login: 'me', items: [] }) }; };
+  const docs = [{ key: 'github.com/a/far', slug: 'github.com/a/far', cloned: false }];
+  const once = () => collect(codeSearch({ docs, query: 'hello', pause: 0, env: { GHQCD_CACHE_DIR: cache }, signal: new AbortController().signal, token: () => 't' }));
+  try {
+    writeFileSync(join(cache, 'code-search.json'), JSON.stringify({ 'github.com': Array(10).fill(Date.now()) }));
+    await once();
+    assert.equal(calls, 0, 'a full budget, spent by other processes, sends nothing');
+    writeFileSync(join(cache, 'code-search.json'), JSON.stringify({ 'github.com': Array(10).fill(Date.now() - 61000) }));
+    await once();
+    assert.ok(calls > 0, 'a budget a minute old is free again');
+    assert.equal(JSON.parse(readFileSync(join(cache, 'code-search.json'), 'utf8'))['github.com'].length, 1);
+  } finally {
+    globalThis.fetch = realFetch;
+    rmSync(cache, { recursive: true, force: true });
   }
 });
