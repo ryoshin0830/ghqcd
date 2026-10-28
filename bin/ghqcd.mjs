@@ -813,6 +813,9 @@ function startIndexer(si, semantic) {
   si.writeProgress({ pid: child.pid, since: Date.now(), text: 'starting' });
   return child;
 }
+// One token lookup (maybe a `gh auth token`) per host and run.
+const tokens = new Map();
+const tokenOf = (si) => (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
 const running = (si) => {
   const p = si.readProgress();
   const pid = si.indexPid();
@@ -973,8 +976,7 @@ async function searchWindow(si, repos, slugOf) {
     } else if (stale(si, semantic)) startRefresh();
   };
   const { codeSearch } = await import('../lib/code.mjs');
-  const tokens = new Map();
-  const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
+  const token = tokenOf(si);
   // Every answer starts with one header line (fzf --header-lines=1): fzf keeps
   // the old list until a line arrives, so a query with no name hits used to
   // leave the previous results up for seconds while meaning and code ran.
@@ -1105,8 +1107,7 @@ async function searchOnce(si, repos, slugOf, root) {
   if (query) {
     const { streamResults } = await import('../lib/serve.mjs');
     const { codeSearch } = await import('../lib/code.mjs');
-    const tokens = new Map();
-    const token = (host) => (tokens.has(host) ? tokens.get(host) : tokens.set(host, si.tokenFor(host)).get(host));
+    const token = tokenOf(si);
     const find = semantic && si.meaningSearch();
     await streamResults({
       query, docs, signal: new AbortController().signal, emit: (h) => hits.push(h),
