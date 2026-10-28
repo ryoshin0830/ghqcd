@@ -1092,3 +1092,29 @@ test('--help names --search and how each window key is done without the window',
   assert.match(out, /--search/);
   assert.match(out, /FOR SCRIPTS AND AGENTS/);
 });
+
+test('--search reports semantic:false when vectors are not there for this model, even with an old semanticAt', () => {
+  const cache = searchCache();
+  writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.now(), semanticAt: Date.now() }));
+  const r = run(['--search', '--json', 'stalls'], { env: { GHQCD_CACHE_DIR: cache, GHQCD_SEMANTIC: '1' } });
+  rmSync(cache, { recursive: true, force: true });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).semantic, false);
+  assert.match(r.stderr, /meaning search did not run/);
+});
+
+test('--search with no query runs no meaning search and says so without a warning', () => {
+  const cache = searchCache();
+  const r = run(['--search', '--json'], { env: { GHQCD_CACHE_DIR: cache, GHQCD_SEMANTIC: '1' } });
+  rmSync(cache, { recursive: true, force: true });
+  assert.equal(JSON.parse(r.stdout).semantic, false);
+  assert.equal(ourStderr(r.stderr), '');
+});
+
+test('--search without any index still finds clones by name', () => {
+  const r = run(['--search', '--json', 'banana']);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.index.updatedAt, null);
+  assert.equal(out.results[0].path, REPOS[1]);
+});

@@ -104,8 +104,10 @@ ghqcd --search --json "upload stalls"
 - Meaning search runs only with `GHQCD_SEMANTIC=1` and vectors built; check
   `semantic` in the payload. It loads a 1.2 GB model (seconds, ~4 GB memory).
 - Code queries for repositories that are not cloned go to GitHub's code
-  search (10 a minute per host); clones are searched with `git grep` locally.
-- `index.updatedAt: null` means no index yet: only clones, by name and README.
+  search, at most 10 a minute per host across every ghqcd run (the window's
+  included); past that, GitHub code hits are simply missing for the rest of
+  the minute. Clones are searched with `git grep` locally.
+- `index.updatedAt: null` means no index yet: only clones, by name, path and code.
   Suggest `ghqcd --index` to the user rather than running it unasked.
 
 Every window action has a command:
@@ -114,7 +116,7 @@ Every window action has a command:
 | --- | --- |
 | type a query | `ghqcd --search --json <q>` |
 | the label column | `match`, `ref`, `similarity` |
-| Enter on a clone | `ghqcd --json <q>` (`path`) |
+| Enter on a clone | the result's `path` |
 | Enter, not cloned | `ghq get https://<slug> && ghq list -e -p <slug>` |
 | ctrl-o | `url` |
 | ctrl-r | `ghqcd --index` (ask first) |

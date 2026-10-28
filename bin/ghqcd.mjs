@@ -72,7 +72,7 @@ FOR SCRIPTS AND AGENTS
   Everything the window does, without it:
     type a query             ${PKG} --search --json <q>
     the label column         "match", "ref" (#issue or file:line), "similarity"
-    Enter on a clone         ${PKG} --json <q>  (path)
+    Enter on a clone         the result's "path"
     Enter, not cloned        ghq get https://<slug> && ghq list -e -p <slug>
     ctrl-o                   "url"
     ctrl-r                   ${PKG} --index
@@ -1100,9 +1100,10 @@ async function searchWindow(si, repos, slugOf) {
 async function searchOnce(si, repos, slugOf, root) {
   const docs = si.readDocs(repos, slugOf);
   const status = si.readStatus();
-  let semantic = SEMANTIC;
+  // `semantic` says whether meaning search ran: opted in, a query, vectors there.
+  let semantic = SEMANTIC && !!query;
   const skipMeaning = (why) => { semantic = false; say(`${PKG}: meaning search did not run: ${why}`); };
-  if (semantic && !status.semanticAt) skipMeaning(`no vectors yet. \`GHQCD_SEMANTIC=1 ${PKG} --index\` builds them`);
+  if (semantic && !si.hasVectors()) skipMeaning(`no vectors yet. \`GHQCD_SEMANTIC=1 ${PKG} --index\` builds them`);
   const hits = [];
   if (query) {
     const { streamResults } = await import('../lib/serve.mjs');

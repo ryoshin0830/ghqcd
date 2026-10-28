@@ -271,7 +271,7 @@ per result: match, slug, path, ref, snippet.
 | In the window | Without it |
 | --- | --- |
 | type a query | `ghqcd --search --json <q>` |
-| Enter on a clone | `ghqcd --json <q>` |
+| Enter on a clone | the result's `path` |
 | Enter, not cloned | `ghq get https://<slug> && ghq list -e -p <slug>` |
 | ctrl-o | the result's `url` |
 | ctrl-r | `ghqcd --index` |
