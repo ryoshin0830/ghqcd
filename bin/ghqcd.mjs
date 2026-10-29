@@ -65,7 +65,8 @@ THE SEARCH WINDOW
   search a pinned WebAssembly runtime and model (Qwen3-Embedding-0.6B fp16,
   about 1.2 GB, downloaded once), which holds about 4 GB of memory while enabled.
   Disabling releases that memory and keeps the model and vectors for reuse.
-  GHQCD_SEMANTIC=1 opts in at launch or when running --index.
+  Shift+Tab's choice carries over to the next window (off the first time);
+  GHQCD_SEMANTIC=1 / =0 overrides it at launch, and opts in for --index.
   Code queries for repositories that are not cloned go to GitHub's code search.
 
 FOR SCRIPTS AND AGENTS
@@ -770,7 +771,8 @@ async function runIndex(repos, slugOf) {
   else say(dim(`  cache: ${res.cache}`));
 }
 
-// Opt in at launch, or with Shift+Tab in the window. Cached models/vectors stay.
+// Opt in at launch, or with Shift+Tab in the window, which the next window
+// remembers (GHQCD_SEMANTIC, when set, wins). Cached models/vectors stay.
 const SEMANTIC = process.env.GHQCD_SEMANTIC === '1';
 
 // The window refreshes the index once a day, in the background. --json and
@@ -933,7 +935,7 @@ async function searchWindow(si, repos, slugOf) {
   const dir = socketDir(cache);
   let docs = si.readDocs(repos, slugOf);
   let seen = JSON.stringify(si.readStatus());
-  let semantic = SEMANTIC;
+  let semantic = process.env.GHQCD_SEMANTIC ? SEMANTIC : si.readSettings()?.semantic === true;
   let worker;
   const meaning = async (q, signal) => {
     if (!semantic) return [];
@@ -962,6 +964,7 @@ async function searchWindow(si, repos, slugOf) {
   };
   const toggleVectors = () => {
     semantic = !semantic;
+    try { si.writeSettings({ semantic }); } catch { /* a full disk: this window still toggles */ }
     if (!semantic) {
       worker?.close();
       worker = undefined;

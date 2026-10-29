@@ -141,7 +141,8 @@ and how — `matched issue #12 by the words typed`, `matched the README by meani
 
 Every word must match somewhere. Name hits appear as you type; code hits are
 added below them as they arrive. Vector (meaning) search is off by default;
-Shift+Tab enables it and adds meaning hits before code hits.
+Shift+Tab enables it, adds meaning hits before code hits, and is remembered for
+the next window.
 
 Meaning search uses a lower cutoff for short search terms and keeps candidates
 close to the best match. See the [real-model precision/recall evaluation](docs/research/semantic-calibration/README.md)
@@ -200,8 +201,10 @@ because it holds issue text from private repositories.
 
 ### Meaning search: what gets installed
 
-Vector search is off when a window starts. Press Shift+Tab to enable it for
-that window, or use `GHQCD_SEMANTIC=1 ghqcd` to start with it enabled. The first
+Vector search is off the first time a window opens. Press Shift+Tab to toggle
+it; the next window starts the way the last one was left. `GHQCD_SEMANTIC=1` or
+`=0` overrides that at launch. `--search` and `--index` follow only the
+variable, so an agent's results do not depend on your last window. The first
 time it is enabled, the window builds any missing vectors in the background.
 Nothing is added to ghqcd's own dependencies; vector indexing installs, into
 the cache directory:

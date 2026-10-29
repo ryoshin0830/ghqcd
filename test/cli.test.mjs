@@ -720,7 +720,7 @@ test('--index matches a clone to its GitHub repository whatever the case of its 
 // The window itself, under a pty (expect), with an fzf that records how it
 // was started and leaves as Esc would. Only the arguments are checked here;
 // the UI is in CLAUDE.md's manual matrix. prepare(cache) sets the cache up.
-function openWindow(t, { cache, prepare = () => {} } = {}) {
+function openWindow(t, { cache, prepare = () => {}, env: extra = {} } = {}) {
   if (spawnSync('expect', ['-v'], { stdio: 'ignore' }).error) return t.skip('expect not installed');
   const shims = makeShims();
   const base = tempCache();
@@ -734,8 +734,9 @@ exit 130
   try {
     spawnSync('mkdir', ['-p', cache]);
     prepare(cache);
-    const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '' };
+    const env = { ...process.env, PATH: `${shims}:${process.env.PATH}`, NO_COLOR: '1', GHQCD_SEMANTIC: '0', GHQCD_CACHE_DIR: cache, GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', ...extra };
     delete env.FORCE_COLOR;
+    for (const k of Object.keys(env)) if (env[k] === undefined) delete env[k];
     // timeout: a window that hangs must fail the release gate, not hold it for 6 h.
     const r = spawnSync('expect', ['-c', `spawn ${process.execPath} ${BIN}; expect eof; catch wait result; exit [lindex $result 3]`], { encoding: 'utf8', env, timeout: 30000 });
     assert.equal(r.status, 130, r.stdout);
@@ -865,6 +866,18 @@ test('the window shows vector mode and binds shift-tab without closing fzf', (t)
     assert.match(w.args.join('\n'), /vectors: OFF \(disabled\) · shift-tab: enable/);
     assert.ok(w.args.some((a) => a.startsWith('--bind=shift-tab:execute-silent(') && a.includes('--serve-toggle-vectors')));
   } finally { closeWindow(w); }
+});
+
+test('the window starts in the vector mode the last window left, unless GHQCD_SEMANTIC says', (t) => {
+  const remembered = (cache) => {
+    writeFileSync(join(cache, 'status.json'), JSON.stringify({ textAt: Date.now(), semanticAt: Date.now() }));
+    writeFileSync(join(cache, 'settings.json'), JSON.stringify({ semantic: true }));
+  };
+  for (const [env, mode] of [[{ GHQCD_SEMANTIC: undefined }, /vectors: ON \(enabled\)/], [{ GHQCD_SEMANTIC: '0' }, /vectors: OFF \(disabled\)/]]) {
+    const w = openWindow(t, { prepare: remembered, env });
+    if (!w) return;
+    try { assert.match(w.args.join('\n'), mode); } finally { closeWindow(w); }
+  }
 });
 
 test('the window shows chunk progress and remaining time instead of historical refresh cost', (t) => {

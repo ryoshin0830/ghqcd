@@ -117,6 +117,7 @@ send -- "\\r"
     assert.deepEqual(events.filter((e) => e.kind === 'load').map((e) => e.phase), ['on', 'again']);
     assert.equal(events.some((e) => e.phase === 'initial' || e.phase === 'off-settled'), false, 'off mode must not keep a model worker alive');
     assert.deepEqual(readFileSync(vectorFile), before);
+    assert.deepEqual(JSON.parse(readFileSync(join(f.cache, 'settings.json'), 'utf8')), { semantic: true }, 'the next window starts where this one ended');
     assert.ok(existsSync(join(f.cache, 'models', MODEL.key, 'model_fp16.onnx')));
   } finally { rmSync(f.base, { recursive: true, force: true }); }
 });
