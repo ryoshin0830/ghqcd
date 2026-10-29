@@ -935,7 +935,7 @@ async function searchWindow(si, repos, slugOf) {
   const dir = socketDir(cache);
   let docs = si.readDocs(repos, slugOf);
   let seen = JSON.stringify(si.readStatus());
-  let semantic = process.env.GHQCD_SEMANTIC ? SEMANTIC : si.readSettings().semantic === true;
+  let semantic = process.env.GHQCD_SEMANTIC ? SEMANTIC : si.readSettings()?.semantic === true;
   let worker;
   const meaning = async (q, signal) => {
     if (!semantic) return [];

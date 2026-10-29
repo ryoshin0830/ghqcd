@@ -141,7 +141,8 @@ and how — `matched issue #12 by the words typed`, `matched the README by meani
 
 Every word must match somewhere. Name hits appear as you type; code hits are
 added below them as they arrive. Vector (meaning) search is off by default;
-Shift+Tab enables it and adds meaning hits before code hits.
+Shift+Tab enables it, adds meaning hits before code hits, and is remembered for
+the next window.
 
 Meaning search uses a lower cutoff for short search terms and keeps candidates
 close to the best match. See the [real-model precision/recall evaluation](docs/research/semantic-calibration/README.md)
