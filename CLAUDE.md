@@ -311,8 +311,10 @@ The window (bin/ghqcd.mjs, "the search window") is the only interactive UI.
   host, counted across processes in `code-search.json` (an agent's `--search`
   loop shares the window's budget); that is the only query text that leaves the machine.
 - **Vector search is off by default** (the user's decision). Shift+Tab toggles
-  it in the current window; `GHQCD_SEMANTIC=1` explicitly opts in at launch or
-  for `--index`. Disabled mode creates no search worker or vector indexing.
+  it, and the next window starts where the last one left it (`settings.json`
+  `{ semantic }`; the user asked for this). A set `GHQCD_SEMANTIC` (`1`/`0`)
+  wins over it at launch and is the only switch for `--index` and `--search`,
+  so an agent's answer never depends on the user's last window. Disabled mode creates no search worker or vector indexing.
   Disabling releases the search worker and pauses only a vector indexer that
   this window started; cached models and completed vectors are retained.
   A text-only refresh that finishes after enabling is followed by a vector

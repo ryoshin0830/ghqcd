@@ -200,8 +200,10 @@ because it holds issue text from private repositories.
 
 ### Meaning search: what gets installed
 
-Vector search is off when a window starts. Press Shift+Tab to enable it for
-that window, or use `GHQCD_SEMANTIC=1 ghqcd` to start with it enabled. The first
+Vector search is off the first time a window opens. Press Shift+Tab to toggle
+it; the next window starts the way the last one was left. `GHQCD_SEMANTIC=1` or
+`=0` overrides that at launch. `--search` and `--index` follow only the
+variable, so an agent's results do not depend on your last window. The first
 time it is enabled, the window builds any missing vectors in the background.
 Nothing is added to ghqcd's own dependencies; vector indexing installs, into
 the cache directory:
