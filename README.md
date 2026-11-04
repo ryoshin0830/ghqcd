@@ -57,6 +57,14 @@ global install: `npx` adds about a second to every jump.
 Requires `git`, `ghq` and `fzf` on `PATH` (`brew install git ghq fzf`), and
 Node >= 20.12. git is needed because `ghq` shells out to it.
 
+On an interactive launch, ghqcd checks npm for a newer release and offers to
+install it globally. Choose **1** to update, then run `ghqcd` again; choose
+**2** or press Enter to continue with the current version. If npm is unavailable,
+offline, or the update fails, ghqcd continues normally. The check is skipped for
+non-interactive and informational commands. Set `NO_UPDATE_NOTIFIER=1` to skip
+it entirely. Global installation uses your npm configuration and may require
+permission to write to its global prefix.
+
 ## Why `--init` exists
 
 A child process cannot change its parent shell's working directory. `npx ghqcd`
