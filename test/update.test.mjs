@@ -19,6 +19,11 @@ test('compares npm versions including prereleases and rejects invalid versions',
 function fixture() {
   const f = windowFixture({ vectors: false });
   delete f.env.NO_UPDATE_NOTIFIER;
+  // The release runner may lack fzf. These tests select a unique repository
+  // without opening its UI; the container suite exercises the real fzf too.
+  if (spawnSync('fzf', ['--version'], { stdio: 'ignore' }).error) {
+    writeFileSync(join(f.shims, 'fzf'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  }
   f.env.NPM_CALLS = join(f.base, 'npm-calls');
   writeFileSync(join(f.shims, 'npm'), `#!/bin/sh
 printf '%s\\n' "$*" >> "$NPM_CALLS"
