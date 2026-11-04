@@ -19,6 +19,7 @@ export function windowFixture({ vectors = true } = {}) {
     GHQCD_TEST_VECTOR_LOG: join(base, 'vector-events'), GHQCD_TEST_PHASE: join(base, 'phase'),
     GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', GITHUB_ENTERPRISE_TOKEN: '',
     TERM: 'xterm-256color', NO_COLOR: '1', SHELL: '/bin/sh',
+    NO_UPDATE_NOTIFIER: '1',
   };
   delete env.GHQCD_SEMANTIC;
   delete env.FORCE_COLOR;

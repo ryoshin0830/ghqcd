@@ -539,6 +539,38 @@ async function confirmYesNo(question) {
   return c === 0x0d || c === 0x0a || c === 0x79 || c === 0x59; // Enter, y, Y
 }
 
+async function offerUpdate() {
+  // --quiet is used by the shell function; stdout must remain the selected path.
+  // Informational and machine-readable commands must never prompt or access npm.
+  if (!stdinTTY || !stderrTTY || isJson || values.list || values.search || values.index || process.env.NO_UPDATE_NOTIFIER) return;
+  const { latestVersion, installUpdate } = await import('../lib/update.mjs');
+  const latest = await latestVersion(VERSION);
+  if (!latest) return;
+
+  stderr.write(`\nUpdate available: ${VERSION} → ${latest}\n` +
+    'Install the update globally with npm? It will take effect on the next launch.\n' +
+    '  1. Update now\n  2. Continue without updating\n' +
+    'Choose 1 or 2 [2]: ');
+  let update = false;
+  while (true) {
+    const key = await waitForKey();
+    if (key.includes(0x03)) process.exit(130);
+    const input = key.toString();
+    if (input === '1') { update = true; break; }
+    if (input === '2' || input === '\r' || input === '\n' || input === '\x1b') break;
+  }
+  stderr.write('\n');
+  if (!update) return;
+  stderr.write(`Updating ghqcd to ${latest}...\n`);
+  const result = installUpdate(latest);
+  if (result.status === 0) {
+    stderr.write('Update complete. Run ghqcd again to use the new version.\n');
+    return true;
+  }
+  stderr.write('Update failed. Continuing with the current version.\n');
+  return false;
+}
+
 // ── candidate collection ─────────────────────────────────────────────────────
 
 // ghq supports several roots at once (`ghq.root` repeated, or a colon-separated
@@ -1172,6 +1204,8 @@ function meaningWorker() {
 // ── main flow ────────────────────────────────────────────────────────────────
 
 async function main() {
+  // npm can replace our own files; do not load further modules from that install.
+  if (await offerUpdate()) return;
   await ensureTool('git');
   await ensureTool('ghq');
   if (!values.index && !values.search) await ensureTool('fzf');
